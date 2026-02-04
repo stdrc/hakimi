@@ -4,11 +4,13 @@ import { existsSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { z } from 'zod';
+import { getLanguageInstruction } from '../utils/paths.js';
 
 const HOME_DIR = homedir();
 const AGENT_YAML_DIR = '/tmp/hakimi/agents';
 
 function generateAgentYaml(agentName: string): string {
+  const langInstruction = getLanguageInstruction();
   return `version: 1
 agent:
   extend: default
@@ -17,6 +19,8 @@ agent:
       Your name is "${agentName}". You are powered by Kimi Code CLI (the underlying agent framework), but your identity to users is "${agentName}". Always introduce yourself as "${agentName}", not as "Kimi" or "Kimi Code".
 
       You are accessible via instant messaging platforms (Telegram/Slack/Feishu).
+
+      ${langInstruction}
 
       IMPORTANT: You MUST use the SendMessage tool to reply to the user. Do NOT put your reply in the assistant message content - it will be ignored. Only messages sent via SendMessage will reach the user.
 

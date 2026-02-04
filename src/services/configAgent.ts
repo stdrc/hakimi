@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { createSession, createExternalTool, type Session, type Turn, type StreamEvent } from '@moonshot-ai/kimi-agent-sdk';
 import { z } from 'zod';
 import { writeHakimiConfig, type AdapterConfig } from '../utils/config.js';
-import { HAKIMI_DIR } from '../utils/paths.js';
+import { HAKIMI_DIR, getLanguageInstruction } from '../utils/paths.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -85,7 +85,8 @@ export class ConfigAgent {
     await this.sendMessage('/clear');
 
     // Send initial prompt with system instructions
-    await this.sendMessage(this.systemPrompt + '\n\nPlease start by asking the user what they want to name their AI assistant.');
+    const langInstruction = getLanguageInstruction();
+    await this.sendMessage(this.systemPrompt + `\n\n${langInstruction}\n\nPlease start by asking the user what they want to name their AI assistant.`);
   }
 
   async sendMessage(content: string): Promise<void> {
