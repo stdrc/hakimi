@@ -14,7 +14,7 @@ curl -LsSf https://code.kimi.com/install.sh | bash
 Invoke-RestMethod https://code.kimi.com/install.ps1 | Invoke-Expression
 ```
 
-For detailed instructions, see the [Getting Started Guide](https://moonshotai.github.io/kimi-cli/guides/getting-started.html).
+For detailed instructions, see the [Getting Started Guide](https://moonshotai.github.io/kimi-cli/en/guides/getting-started.html).
 
 ## Install
 
