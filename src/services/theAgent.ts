@@ -1,8 +1,12 @@
 import { createSession, createExternalTool, type Session, type Turn } from '@moonshot-ai/kimi-agent-sdk';
-import { writeFile } from 'node:fs/promises';
+import { mkdir, writeFile } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
+import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { z } from 'zod';
-import { HAKIMI_DIR } from '../utils/paths.js';
+
+const HOME_DIR = homedir();
+const AGENT_YAML_DIR = '/tmp/hakimi/agents';
 
 function generateAgentYaml(agentName: string): string {
   return `version: 1
@@ -16,7 +20,10 @@ agent:
 
       IMPORTANT: You MUST use the SendMessage tool to reply to the user. Do NOT put your reply in the assistant message content - it will be ignored. Only messages sent via SendMessage will reach the user.
 
-      You can call SendMessage multiple times if needed (e.g., for long responses or multiple parts).
+      IMPORTANT: Prefer calling SendMessage multiple times with shorter messages rather than one long message. This provides better user experience on IM platforms - users see responses progressively instead of waiting for a wall of text. For example:
+      - Send a greeting first, then details
+      - Send each major point separately
+      - Send code blocks as separate messages
 `;
 }
 
@@ -44,8 +51,16 @@ export class TheAgent {
   }
 
   async start(): Promise<void> {
+    const kimiSessionId = `hakimi-${this.sessionId}`;
+    this.log(`Starting session: ${kimiSessionId}`);
+
+    // Ensure agent YAML directory exists
+    if (!existsSync(AGENT_YAML_DIR)) {
+      await mkdir(AGENT_YAML_DIR, { recursive: true });
+    }
+
     // Generate agent YAML with configured name
-    const agentFile = join(HAKIMI_DIR, `agent-${this.sessionId}.yaml`);
+    const agentFile = join(AGENT_YAML_DIR, `${kimiSessionId}.yaml`);
     await writeFile(agentFile, generateAgentYaml(this.agentName), 'utf-8');
 
     const sendMessageTool = createExternalTool({
@@ -63,13 +78,15 @@ export class TheAgent {
     });
 
     this.session = createSession({
-      workDir: HAKIMI_DIR,
-      sessionId: `agent-${this.sessionId}`,
+      workDir: HOME_DIR,
+      sessionId: kimiSessionId,
       agentFile,
       thinking: false,
       yoloMode: true,
       externalTools: [sendMessageTool],
     });
+
+    this.log(`Session created: ${kimiSessionId}`);
   }
 
   async sendMessage(content: string): Promise<void> {

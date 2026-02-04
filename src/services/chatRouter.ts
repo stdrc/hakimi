@@ -55,7 +55,7 @@ export class ChatRouter {
         return;
       } catch (error) {
         lastError = error as Error;
-        const delay = Math.min(2000 * (i + 1), 10000);
+        const delay = Math.min(3000 * (i + 1), 30000); // 3s, 6s, 9s, ... up to 30s
         this.log(`Send failed (${i + 1}/${maxRetries}), retry in ${delay / 1000}s...`);
         await this.sleep(delay);
       }
@@ -204,7 +204,7 @@ export class ChatRouter {
         botId: koishiSession.selfId || '',
         isProcessing: false,
         sendFn: async (message: string) => {
-          await this.sendWithRetry(() => koishiSession.send(message), 3);
+          await this.sendWithRetry(() => koishiSession.send(message), 10);
         },
         agent: null,
         pendingMessage: null,
