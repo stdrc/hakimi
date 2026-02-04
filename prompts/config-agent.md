@@ -41,6 +41,7 @@ Documentation:
 - Koishi Slack Adapter: https://koishi.chat/plugins/adapter/slack.html
 
 Required configuration:
+- `protocol`: Always use `"ws"` (WebSocket mode via Socket Mode)
 - `token`: App-level token (starts with `xapp-`)
 - `botToken`: Bot user OAuth token (starts with `xoxb-`)
 
@@ -49,9 +50,12 @@ Optional:
 
 To get these tokens:
 1. Go to https://api.slack.com/apps and create a new app
-2. Under "Basic Information", find the App-Level Token
-3. Under "OAuth & Permissions", install the app and copy the Bot User OAuth Token
-4. Under "Basic Information", find the Signing Secret (optional)
+2. Enable Socket Mode under "Socket Mode" settings
+3. Under "Basic Information", generate an App-Level Token with `connections:write` scope
+4. Under "OAuth & Permissions", install the app and copy the Bot User OAuth Token
+5. Under "Basic Information", find the Signing Secret (optional)
+
+**Always use `protocol: "ws"` for Slack.**
 
 ### Feishu (Lark)
 
