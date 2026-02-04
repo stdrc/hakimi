@@ -1,0 +1,13 @@
+diff --git a/node_modules/@koishijs/loader/lib/index.mjs b/node_modules/@koishijs/loader/lib/index.mjs
+index a522a63..597395e 100644
+--- a/node_modules/@koishijs/loader/lib/index.mjs
++++ b/node_modules/@koishijs/loader/lib/index.mjs
+@@ -12,7 +12,7 @@ import { Logger } from "@koishijs/core";
+ import { promises as fs } from "fs";
+ import * as dotenv from "dotenv";
+ import ns from "ns-require";
+-import Loader from "./shared.js";
++import { Loader } from "./shared.js";
+ import { createRequire } from "module";
+ export * from "./shared.js";
+ var logger = new Logger("app");

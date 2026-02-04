@@ -1,0 +1,52 @@
+diff --git a/node_modules/@moonshot-ai/kimi-agent-sdk/dist/index.cjs b/node_modules/@moonshot-ai/kimi-agent-sdk/dist/index.cjs
+index 178748a..1915dfd 100644
+--- a/node_modules/@moonshot-ai/kimi-agent-sdk/dist/index.cjs
++++ b/node_modules/@moonshot-ai/kimi-agent-sdk/dist/index.cjs
+@@ -691,6 +691,9 @@ var ProtocolClient = class {
+     if (options.yoloMode) {
+       args.push("--yolo");
+     }
++    if (options.agentFile) {
++      args.push("--agent-file", options.agentFile);
++    }
+     return args;
+   }
+   // Private: RPC Communication
+diff --git a/node_modules/@moonshot-ai/kimi-agent-sdk/dist/index.mjs b/node_modules/@moonshot-ai/kimi-agent-sdk/dist/index.mjs
+index db90a40..2854315 100644
+--- a/node_modules/@moonshot-ai/kimi-agent-sdk/dist/index.mjs
++++ b/node_modules/@moonshot-ai/kimi-agent-sdk/dist/index.mjs
+@@ -661,6 +661,9 @@ var ProtocolClient = class {
+     if (options.yoloMode) {
+       args.push("--yolo");
+     }
++    if (options.agentFile) {
++      args.push("--agent-file", options.agentFile);
++    }
+     return args;
+   }
+   // Private: RPC Communication
+diff --git a/node_modules/@moonshot-ai/kimi-agent-sdk/dist/schema.d.mts b/node_modules/@moonshot-ai/kimi-agent-sdk/dist/schema.d.mts
+index f44799b..98cc4e6 100644
+--- a/node_modules/@moonshot-ai/kimi-agent-sdk/dist/schema.d.mts
++++ b/node_modules/@moonshot-ai/kimi-agent-sdk/dist/schema.d.mts
+@@ -1792,6 +1792,7 @@ interface SessionOptions {
+     executable?: string;
+     env?: Record<string, string>;
+     externalTools?: ExternalTool[];
++    agentFile?: string;
+     clientInfo?: {
+         name: string;
+         version: string;
+diff --git a/node_modules/@moonshot-ai/kimi-agent-sdk/dist/schema.d.ts b/node_modules/@moonshot-ai/kimi-agent-sdk/dist/schema.d.ts
+index f44799b..98cc4e6 100644
+--- a/node_modules/@moonshot-ai/kimi-agent-sdk/dist/schema.d.ts
++++ b/node_modules/@moonshot-ai/kimi-agent-sdk/dist/schema.d.ts
+@@ -1792,6 +1792,7 @@ interface SessionOptions {
+     executable?: string;
+     env?: Record<string, string>;
+     externalTools?: ExternalTool[];
++    agentFile?: string;
+     clientInfo?: {
+         name: string;
+         version: string;
