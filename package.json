@@ -1,11 +1,33 @@
 {
   "name": "hakimi",
   "version": "0.1.0",
-  "description": "TUI application combining Kimi Agent SDK, Ink, and Koishi for chat routing",
+  "description": "Chat with AI assistant via Telegram/Slack/Feishu to remotely control your computer",
   "type": "module",
   "main": "dist/index.js",
   "bin": {
     "hakimi": "dist/index.js"
+  },
+  "files": [
+    "dist",
+    "prompts",
+    "patches"
+  ],
+  "keywords": [
+    "ai",
+    "agent",
+    "telegram",
+    "slack",
+    "feishu",
+    "lark",
+    "chatbot",
+    "cli",
+    "tui"
+  ],
+  "author": "stdrc",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/stdrc/hakimi"
   },
   "scripts": {
     "postinstall": "patch-package",
