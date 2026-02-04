@@ -1,71 +1,71 @@
 # Hakimi
 
-Hakimi 让你通过 Telegram/Slack/飞书 与 AI 助手对话，远程控制你的电脑。
+Hakimi lets you chat with an AI assistant via Telegram/Slack/Feishu to remotely control your computer.
 
-## 快速开始
+## Quick Start
 
-### 1. 安装
+### 1. Install
 
 ```bash
 npm install
 ```
 
-### 2. 启动
+### 2. Run
 
 ```bash
 npm run dev
 ```
 
-调试模式（显示详细日志）：
+Debug mode (show detailed logs):
 
 ```bash
 npm run dev -- --debug
 ```
 
-### 3. 登录 Kimi Code
+### 3. Login to Kimi Code
 
-按 `L` 登录 Kimi Code 账号，按照提示在浏览器完成授权。
+Press `L` to login to your Kimi Code account. Follow the prompts to complete authorization in your browser.
 
-### 4. 配置
+### 4. Configure
 
-按 `C` 进入配置向导，AI 助手会引导你完成：
-- 给你的 AI 助手起个名字
-- 配置聊天平台（Telegram/Slack/飞书）
+Press `C` to start the configuration wizard. The AI assistant will guide you through:
+- Naming your AI assistant
+- Setting up chat platforms (Telegram/Slack/Feishu)
 
-### 5. 开始使用
+### 5. Start Using
 
-按 `S` 启动服务，然后在聊天平台给你的 Bot 发消息即可。
+Press `S` to start the service, then send messages to your Bot on the chat platform.
 
-## 支持的平台
+## Supported Platforms
 
 ### Telegram
 
-1. 在 Telegram 搜索 @BotFather
-2. 发送 `/newbot` 创建机器人
-3. 获取 Bot Token
+1. Search for @BotFather on Telegram
+2. Send `/newbot` to create a bot
+3. Get the Bot Token
 
 ### Slack
 
-1. 访问 https://api.slack.com/apps 创建应用
-2. 获取 App-Level Token (`xapp-...`)
-3. 获取 Bot User OAuth Token (`xoxb-...`)
+1. Go to https://api.slack.com/apps to create an app
+2. Get the App-Level Token (`xapp-...`)
+3. Get the Bot User OAuth Token (`xoxb-...`)
 
-### 飞书
+### Feishu (Lark)
 
-1. 访问 https://open.feishu.cn 创建应用
-2. 获取 App ID 和 App Secret
+1. Go to https://open.feishu.cn to create an app
+2. Get the App ID and App Secret
 
-## 配置文件位置
+## Config File Locations
 
-- Kimi Code：`~/.kimi/config.toml`
-- Hakimi：`~/.hakimi/config.toml`
+- Kimi Code: `~/.kimi/config.toml`
+- Hakimi: `~/.hakimi/config.toml`
 
-## 快捷键
+## Hotkeys
 
-| 键 | 功能 |
-|---|------|
-| L | 登录 Kimi Code |
-| C | 配置向导 |
-| S | 启动/停止服务 |
-| Q | 退出 |
-| Esc | 返回/取消 |
+| Key | Function |
+|-----|----------|
+| L | Login to Kimi Code |
+| C | Configuration wizard |
+| S | Start/Stop service |
+| Q | Quit |
+| Esc | Back/Cancel |
