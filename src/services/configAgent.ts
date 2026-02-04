@@ -9,7 +9,9 @@ import { HAKIMI_DIR, getLanguageInstruction } from '../utils/paths.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-const CONFIG_SESSION_ID = 'hakimi-config-wizard';
+function generateSessionId(): string {
+  return `hakimi-config-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
 
 export interface ConfigAgentCallbacks {
   onText: (text: string) => void;
@@ -75,14 +77,11 @@ export class ConfigAgent {
 
     this.session = createSession({
       workDir: HAKIMI_DIR,
-      sessionId: CONFIG_SESSION_ID,
+      sessionId: generateSessionId(),
       thinking: false,
       yoloMode: true,
       externalTools: [askUserTool, finishConfigTool],
     });
-
-    // Clear previous session context
-    await this.sendMessage('/clear');
 
     // Send initial prompt with system instructions
     const langInstruction = getLanguageInstruction();
