@@ -188,8 +188,16 @@ export class ChatRouter {
   }
 
   private handleMessage(koishiSession: KoishiSession): void {
-    // Only handle private messages
-    if (koishiSession.guildId) return;
+    this.log(`Received: platform=${koishiSession.platform}, guildId=${koishiSession.guildId}, channelId=${koishiSession.channelId}, userId=${koishiSession.userId}`);
+
+    // Only handle private messages (no guildId, or Slack DM channels starting with 'D')
+    const isPrivate = !koishiSession.guildId ||
+      (koishiSession.platform === 'slack' && koishiSession.channelId?.startsWith('D'));
+
+    if (!isPrivate) {
+      this.log(`Skipping non-private message`);
+      return;
+    }
 
     const sessionId = `${koishiSession.platform}-${koishiSession.selfId}-${koishiSession.userId}`;
     const content = koishiSession.content || '';

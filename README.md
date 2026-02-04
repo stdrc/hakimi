@@ -2,6 +2,20 @@
 
 Chat with an AI assistant via Telegram/Slack/Feishu to remotely control your computer.
 
+## Prerequisites
+
+Hakimi depends on [Kimi Code CLI](https://github.com/MoonshotAI/kimi-cli). Install it first:
+
+```bash
+# Linux/macOS
+curl -LsSf https://code.kimi.com/install.sh | bash
+
+# Windows (PowerShell)
+Invoke-RestMethod https://code.kimi.com/install.ps1 | Invoke-Expression
+```
+
+For detailed instructions, see the [Getting Started Guide](https://moonshotai.github.io/kimi-cli/zh/guides/getting-started.html).
+
 ## Install
 
 ```bash
