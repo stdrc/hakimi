@@ -65,12 +65,16 @@ Documentation:
 - Koishi Lark Adapter: https://koishi.chat/plugins/adapter/lark.html
 
 Required configuration:
+- `protocol`: Always use `"ws"` (WebSocket mode)
 - `appId`: Application ID
 - `appSecret`: Application Secret
 
 To get these:
 1. Go to https://open.feishu.cn and create an application
 2. Find the App ID and App Secret in the application credentials
+3. Enable "Events" and configure event subscription
+
+**Always use `protocol: "ws"` for Feishu.**
 
 ## Instructions
 
