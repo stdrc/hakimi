@@ -1,38 +1,36 @@
 # Hakimi
 
-Hakimi lets you chat with an AI assistant via Telegram/Slack/Feishu to remotely control your computer.
+Chat with an AI assistant via Telegram/Slack/Feishu to remotely control your computer.
 
-## Quick Start
-
-### 1. Install
+## Install
 
 ```bash
-npm install
+npm install -g hakimi
 ```
 
-### 2. Run
+## Usage
 
 ```bash
-npm run dev
+hakimi
 ```
 
 Debug mode (show detailed logs):
 
 ```bash
-npm run dev -- --debug
+hakimi --debug
 ```
 
-### 3. Login to Kimi Code
+### 1. Login to Kimi Code
 
 Press `L` to login to your Kimi Code account. Follow the prompts to complete authorization in your browser.
 
-### 4. Configure
+### 2. Configure
 
 Press `C` to start the configuration wizard. The AI assistant will guide you through:
 - Naming your AI assistant
 - Setting up chat platforms (Telegram/Slack/Feishu)
 
-### 5. Start Using
+### 3. Start Service
 
 Press `S` to start the service, then send messages to your Bot on the chat platform.
 
@@ -55,11 +53,6 @@ Press `S` to start the service, then send messages to your Bot on the chat platf
 1. Go to https://open.feishu.cn to create an app
 2. Get the App ID and App Secret
 
-## Config File Locations
-
-- Kimi Code: `~/.kimi/config.toml`
-- Hakimi: `~/.hakimi/config.toml`
-
 ## Hotkeys
 
 | Key | Function |
@@ -69,3 +62,12 @@ Press `S` to start the service, then send messages to your Bot on the chat platf
 | S | Start/Stop service |
 | Q | Quit |
 | Esc | Back/Cancel |
+
+## Config Files
+
+- Kimi Code: `~/.kimi/config.toml`
+- Hakimi: `~/.hakimi/config.toml`
+
+## License
+
+MIT
