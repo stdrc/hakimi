@@ -35,7 +35,7 @@ export function HomeScreen({
 }: HomeScreenProps) {
   const [inputValue, setInputValue] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
-  const [lastResponse, setLastResponse] = useState<string>('');
+  const [responses, setResponses] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const agentRef = useRef<TheAgent | null>(null);
   const agentStartedRef = useRef(false);
@@ -47,7 +47,7 @@ export function HomeScreen({
 
     const agent = new TheAgent('terminal', agentName, {
       onSend: async (message) => {
-        setLastResponse(message);
+        setResponses((prev) => [...prev, message]);
       },
       onLog: debug ? (msg) => console.log(`[Agent] ${msg}`) : undefined,
       onConfigChange,
@@ -92,7 +92,7 @@ export function HomeScreen({
     setInputValue('');
     setIsProcessing(true);
     setError(null);
-    setLastResponse('');
+    setResponses([]);
 
     try {
       await agent.sendMessage(value);
@@ -144,10 +144,14 @@ export function HomeScreen({
             </Box>
           )}
 
-          {lastResponse && (
-            <Box marginBottom={1}>
-              <Text color="green">{agentName}: </Text>
-              <Text>{lastResponse}</Text>
+          {responses.length > 0 && (
+            <Box marginBottom={1} flexDirection="column">
+              {responses.map((msg, i) => (
+                <Box key={i}>
+                  <Text color="green">{agentName}: </Text>
+                  <Text>{msg}</Text>
+                </Box>
+              ))}
             </Box>
           )}
 
