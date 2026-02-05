@@ -4,30 +4,74 @@ import { existsSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { z } from 'zod';
-import { getLanguageInstruction, HAKIMI_CONFIG } from '../utils/paths.js';
-import { readHakimiConfig, writeHakimiConfig, type HakimiConfig } from '../utils/config.js';
+import { getLanguageInstruction } from '../utils/paths.js';
+
 
 const DEFAULT_WORK_DIR = join(homedir(), '.hakimi', 'workspace');
 const AGENT_YAML_DIR = '/tmp/hakimi/agents';
 
-const CONFIG_KNOWLEDGE = `
-      ## Hakimi Configuration
+const HAKIMI_CONFIG_SKILL = `---
+name: hakimi-config
+description: Configure Hakimi bot accounts (Telegram/Slack/Feishu). Use this skill when user wants to set up, modify, or troubleshoot bot account configuration for Hakimi.
+---
 
-      You can help users configure bot accounts using ReadHakimiConfig and WriteHakimiConfig tools.
-      Config file: ~/.hakimi/config.toml
+# Hakimi Configuration
 
-      ### Config Format (TOML)
-      agentName = "Hakimi"
-      [[botAccounts]]
-      type = "telegram"
-      [botAccounts.config]
-      protocol = "polling"
-      token = "BOT_TOKEN"
+Hakimi connects to instant messaging platforms via bot accounts.
 
-      ### Available Bot Account Types
-      - Telegram: protocol ("polling" or "server"), token (from @BotFather)
-      - Slack: protocol ("ws"), token (xapp-...), botToken (xoxb-...)
-      - Feishu: protocol ("ws"), appId, appSecret`;
+## Config File
+
+Path: \`~/.hakimi/config.toml\`
+
+Use standard file tools (ReadFile/WriteFile) to read and modify the config. After modifying, call \`ReloadHakimi\` to apply changes.
+
+## Config Format
+
+\`\`\`toml
+agentName = "Hakimi"
+
+[[botAccounts]]
+type = "telegram"
+[botAccounts.config]
+protocol = "polling"
+token = "BOT_TOKEN_FROM_BOTFATHER"
+
+[[botAccounts]]
+type = "slack"
+[botAccounts.config]
+protocol = "ws"
+token = "xapp-..."
+botToken = "xoxb-..."
+
+[[botAccounts]]
+type = "feishu"
+[botAccounts.config]
+protocol = "ws"
+appId = "cli_xxx"
+appSecret = "xxx"
+\`\`\`
+
+## Bot Account Setup
+
+### Telegram
+1. Message @BotFather on Telegram
+2. Send /newbot and follow prompts
+3. Copy the token provided
+4. Config: \`{ type: "telegram", config: { protocol: "polling", token: "YOUR_TOKEN" } }\`
+
+### Slack
+1. Create app at https://api.slack.com/apps
+2. Enable Socket Mode
+3. Generate App-Level Token with \`connections:write\` scope
+4. Install app and get Bot User OAuth Token
+5. Config: \`{ type: "slack", config: { protocol: "ws", token: "xapp-...", botToken: "xoxb-..." } }\`
+
+### Feishu
+1. Create app at https://open.feishu.cn
+2. Get App ID and App Secret
+3. Enable Events with WebSocket mode
+4. Config: \`{ type: "feishu", config: { protocol: "ws", appId: "...", appSecret: "..." } }\`
+`;
 
 function generateAgentYaml(agentName: string, isTerminal: boolean): string {
   const langInstruction = getLanguageInstruction();
@@ -52,7 +96,6 @@ agent:
       IMPORTANT: You MUST use the SendMessage tool to reply to the user. Do NOT put your reply in the assistant message content - it will be ignored. Only messages sent via SendMessage will reach the user.
 
       IMPORTANT: Prefer calling SendMessage multiple times with shorter messages rather than one long message. This provides better user experience - users see responses progressively instead of waiting for a wall of text.
-      ${CONFIG_KNOWLEDGE}
       </role>
 `;
 }
@@ -74,6 +117,7 @@ export class TheAgent {
   private workDir: string;
   private isTerminal: boolean;
   private didSendMessage = false;
+  private pendingReload = false;
 
   constructor(sessionId: string, agentName: string, callbacks: TheAgentCallbacks) {
     this.sessionId = sessionId;
@@ -87,6 +131,18 @@ export class TheAgent {
     this.callbacks.onLog?.(message);
   }
 
+  private async ensureSkillsDirectory(): Promise<void> {
+    const skillsDir = join(this.workDir, 'skills', 'hakimi-config');
+    if (!existsSync(skillsDir)) {
+      await mkdir(skillsDir, { recursive: true });
+    }
+    
+    const skillFile = join(skillsDir, 'SKILL.md');
+    // Always write the skill file to ensure it's up to date
+    await writeFile(skillFile, HAKIMI_CONFIG_SKILL, 'utf-8');
+    this.log(`Skill file written to ${skillFile}`);
+  }
+
   async start(): Promise<void> {
     const kimiSessionId = `hakimi-${this.sessionId}`;
     this.log(`Starting session: ${kimiSessionId}`);
@@ -95,6 +151,9 @@ export class TheAgent {
     if (!existsSync(this.workDir)) {
       await mkdir(this.workDir, { recursive: true });
     }
+
+    // Ensure hakimi-config skill is installed
+    await this.ensureSkillsDirectory();
 
     // Ensure agent YAML directory exists
     if (!existsSync(AGENT_YAML_DIR)) {
@@ -119,45 +178,25 @@ export class TheAgent {
       },
     });
 
-    const readConfigTool = createExternalTool({
-      name: 'ReadHakimiConfig',
-      description: `Read the current Hakimi configuration from ${HAKIMI_CONFIG}`,
+    const reloadTool = createExternalTool({
+      name: 'ReloadHakimi',
+      description: 'Reload Hakimi to apply configuration changes. Call this after modifying ~/.hakimi/config.toml.',
       parameters: z.object({}),
       handler: async () => {
-        const config = await readHakimiConfig();
-        if (!config) {
-          return { output: 'Config file does not exist yet', message: '' };
-        }
-        return { output: JSON.stringify(config, null, 2), message: '' };
+        this.pendingReload = true;
+        return { output: 'Reload scheduled. You will be restarted after this turn. Just reply "El Psy Kongroo" and nothing else.', message: '' };
       },
     });
 
-    const writeConfigTool = createExternalTool({
-      name: 'WriteHakimiConfig',
-      description: `Write Hakimi configuration to ${HAKIMI_CONFIG}. After writing, bot accounts will be automatically reloaded.`,
-      parameters: z.object({
-        config: z.object({
-          agentName: z.string().optional().describe('Name for the AI assistant'),
-          botAccounts: z.array(z.object({
-            type: z.enum(['telegram', 'slack', 'feishu']),
-            config: z.record(z.any()),
-          })).optional().describe('List of bot account configurations'),
-        }).describe('The configuration object to write'),
-      }),
-      handler: async (params) => {
-        await writeHakimiConfig(params.config as HakimiConfig);
-        this.callbacks.onConfigChange?.();
-        return { output: 'Configuration saved successfully. Bot accounts will be reloaded.', message: '' };
-      },
-    });
-
+    const skillsDir = join(this.workDir, 'skills');
     const sessionOptions = {
       workDir: this.workDir,
       sessionId: kimiSessionId,
       agentFile,
+      skillsDir,
       thinking: false,
       yoloMode: true,
-      externalTools: [sendMessageTool, readConfigTool, writeConfigTool],
+      externalTools: [sendMessageTool, reloadTool],
     };
     this.log(`Creating session with options: ${JSON.stringify({ ...sessionOptions, externalTools: '[...]' })}`);
 
@@ -189,6 +228,13 @@ export class TheAgent {
       if (!this.didSendMessage) {
         this.log('Agent failed to send message after retries');
         await this.callbacks.onSend('Sorry, I encountered an error processing your message.');
+      }
+
+      // Execute pending reload after turn completes
+      if (this.pendingReload) {
+        this.pendingReload = false;
+        this.log('Executing pending reload...');
+        this.callbacks.onConfigChange?.();
       }
     } catch (error) {
       this.log(`Error in sendMessage: ${error}`);

@@ -20,6 +20,7 @@ export function App({ debug = false, workDir }: AppProps) {
   const [screen, setScreen] = useState<Screen>('home');
   const [loggedIn, setLoggedIn] = useState(false);
   const [agentName, setAgentName] = useState('Hakimi');
+  const [reloadKey, setReloadKey] = useState(0);
   const [botStatuses, setBotStatuses] = useState<BotStatusInfo[]>([]);
   const [chatError, setChatError] = useState<string | null>(null);
   const [logs, setLogs] = useState<string[]>([]);
@@ -105,6 +106,8 @@ export function App({ debug = false, workDir }: AppProps) {
   const handleConfigChange = useCallback(async () => {
     await refreshStatus();
     await restartChat();
+    // Increment key to force terminal agent restart
+    setReloadKey((k) => k + 1);
   }, [refreshStatus, restartChat]);
 
   const handleQuit = useCallback(async () => {
@@ -118,6 +121,7 @@ export function App({ debug = false, workDir }: AppProps) {
     <Box flexDirection="column">
       {screen === 'home' && (
         <HomeScreen
+          key={reloadKey}
           isLoggedIn={loggedIn}
           botStatuses={botStatuses}
           chatError={chatError}
