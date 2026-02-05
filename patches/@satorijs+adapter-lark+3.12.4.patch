@@ -1,0 +1,49 @@
+diff --git a/node_modules/@satorijs/adapter-lark/src/ws.ts b/node_modules/@satorijs/adapter-lark/src/ws.ts
+index 6b4c3dc..73ea8af 100644
+--- a/node_modules/@satorijs/adapter-lark/src/ws.ts
++++ b/node_modules/@satorijs/adapter-lark/src/ws.ts
+@@ -27,6 +27,8 @@ export class WsClient<C extends Context = Context> extends Adapter.WsClient<C, L
+   _serviceId: number
+   _pingInterval: number = 90000
+   _ping: NodeJS.Timeout
++  _pongTimeout: NodeJS.Timeout
++  _pongReceived: boolean = true
+   _cache: Record<string, FrameSegment[]> = {}
+   _frame: pb.Type
+ 
+@@ -76,8 +78,18 @@ export class WsClient<C extends Context = Context> extends Adapter.WsClient<C, L
+   ping() {
+     if (!this.socket || this.bot.status !== Universal.Status.ONLINE) {
+       clearTimeout(this._ping)
++      clearTimeout(this._pongTimeout)
+       return
+     }
++
++    // Check if previous pong was received
++    if (!this._pongReceived) {
++      this.bot.logger.warn('pong timeout, reconnecting...')
++      this.socket.close(4000, 'pong timeout')
++      return
++    }
++
++    this._pongReceived = false
+     const frame = {
+       headers: [{
+         key: 'type',
+@@ -113,6 +125,7 @@ export class WsClient<C extends Context = Context> extends Adapter.WsClient<C, L
+ 
+       if (frame.method === FrameType.control && headers.type === MessageType.pong) {
+         this.bot.logger.debug('pong')
++        this._pongReceived = true
+         return
+       }
+ 
+@@ -144,6 +157,8 @@ export class WsClient<C extends Context = Context> extends Adapter.WsClient<C, L
+ 
+     this.socket.addEventListener('close', (e) => {
+       clearTimeout(this._ping)
++      clearTimeout(this._pongTimeout)
++      this._pongReceived = true
+     })
+     this.ping()
+   }

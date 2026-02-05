@@ -211,6 +211,7 @@ The project patches dependencies via `patch-package`:
 1. **@koishijs/loader**: Fixes ESM default export issue
 2. **@moonshot-ai/kimi-agent-sdk**: Adds `agentFile` option to customize agent behavior
 3. **@satorijs/core**: Fixes bot dispose error when `ctx.bots` is undefined
+4. **@satorijs/adapter-lark**: Adds pong timeout detection to auto-reconnect on silent WebSocket disconnection
 
 ## Hotkeys
 
