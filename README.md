@@ -1,5 +1,7 @@
 # Hakimi
 
+[![npm version](https://img.shields.io/npm/v/hakimi.svg)](https://www.npmjs.com/package/hakimi)
+
 Chat with an AI assistant via Telegram/Slack/Feishu to remotely control your computer.
 
 ## Prerequisites
