@@ -1,6 +1,6 @@
 {
   "name": "hakimi",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Chat with AI assistant via Telegram/Slack/Feishu to remotely control your computer",
   "type": "module",
   "main": "dist/index.js",
