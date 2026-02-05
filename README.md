@@ -30,25 +30,26 @@ npm install -g hakimi
 hakimi
 ```
 
-Debug mode (show detailed logs):
+Options:
 
 ```bash
+# Debug mode (show detailed logs)
 hakimi --debug
+
+# Custom working directory (default: ~/.hakimi/workspace)
+hakimi --workdir /path/to/project
+hakimi -w /path/to/project
 ```
 
 ### 1. Login to Kimi Code
 
 Press `L` to login to your Kimi Code account. Follow the prompts to complete authorization in your browser.
 
-### 2. Configure
+### 2. Configure Bot Accounts
 
-Press `C` to start the configuration wizard. The AI assistant will guide you through:
-- Naming your AI assistant
-- Setting up chat platforms (Telegram/Slack/Feishu)
+After login, chat with the AI assistant to configure your bot accounts. Just tell it what platform you want to set up (Telegram/Slack/Feishu), and it will guide you through the process.
 
-### 3. Start Service
-
-Press `S` to start the service, then send messages to your Bot on the chat platform.
+The bot service starts automatically once configured.
 
 ## Supported Platforms
 
@@ -73,16 +74,14 @@ Press `S` to start the service, then send messages to your Bot on the chat platf
 
 | Key | Function |
 |-----|----------|
-| L | Login to Kimi Code |
-| C | Configuration wizard |
-| S | Start/Stop service |
-| Q | Quit |
-| Esc | Back/Cancel |
+| L | Login to Kimi Code (when not logged in) |
+| Esc | Quit |
 
 ## Config Files
 
 - Kimi Code: `~/.kimi/config.toml`
 - Hakimi: `~/.hakimi/config.toml`
+- Working directory: `~/.hakimi/workspace/` (default)
 
 ## License
 
