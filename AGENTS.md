@@ -82,6 +82,13 @@ npm start -- --workdir /path/to/project
 npm start -- -w /path/to/project
 ```
 
+## Versioning
+
+- **Minor version** (`npm version minor`): Any feature changes, new functionality, or behavior changes
+- **Patch version** (`npm version patch`): Only bug fixes with no behavior changes
+
+When in doubt, bump minor version.
+
 ## Code Style Guidelines
 
 - **TypeScript**: Strict mode enabled, ES2022 target
