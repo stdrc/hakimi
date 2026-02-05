@@ -42,15 +42,7 @@ export async function readHakimiConfig(): Promise<HakimiConfig | null> {
       return null;
     }
     const content = await readFile(HAKIMI_CONFIG, 'utf-8');
-    const parsed = TOML.parse(content) as HakimiConfig & { adapters?: BotAccountConfig[] };
-    
-    // Backward compatibility: migrate 'adapters' to 'botAccounts'
-    if (parsed.adapters && !parsed.botAccounts) {
-      parsed.botAccounts = parsed.adapters;
-      delete parsed.adapters;
-    }
-    
-    return parsed;
+    return TOML.parse(content) as HakimiConfig;
   } catch {
     return null;
   }
