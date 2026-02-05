@@ -44,8 +44,7 @@ hakimi/
 │   ├── App.tsx               # Main app, screen routing, ChatRouter
 │   ├── components/           # Reusable UI components
 │   │   ├── StatusBar.tsx     # Login/adapter/chat status display
-│   │   ├── HotkeyHint.tsx    # Hotkey hints bar
-│   │   └── MessageLog.tsx    # Chat message list display
+│   │   └── HotkeyHint.tsx    # Hotkey hints bar
 │   ├── screens/              # Screen components (pages)
 │   │   ├── HomeScreen.tsx    # Main menu (L, C, S, Q hotkeys)
 │   │   ├── LoginScreen.tsx   # OAuth login flow UI
@@ -198,8 +197,8 @@ The app uses a simple state-based screen routing in `App.tsx`:
 Two agent types are used:
 
 1. **ConfigAgent** (`configAgent.ts`): Guides users through adapter configuration
-   - Tools: `AskUser`, `ReadConfig`, `WriteConfig`, `Finish`
-   - The agent reads/writes config directly and calls `Finish` when done
+   - Tools: `AskUser`, `ReadConfig`, `WriteConfig`
+   - The agent reads/writes config directly; user can exit anytime with Esc
    - Prompt: `prompts/config-agent.md`
 
 2. **TheAgent** (`theAgent.ts`): Handles chat messages from platforms

@@ -14,7 +14,7 @@ export function StatusBar({ isLoggedIn, adaptersConfigured, chatActive, chatErro
     <Box borderStyle="single" paddingX={1} flexDirection="column">
       <Text bold>Hakimi Status</Text>
       <Box>
-        <Text>Kimi: </Text>
+        <Text>Kimi Code: </Text>
         {isLoggedIn ? (
           <Text color="green">Logged in</Text>
         ) : (

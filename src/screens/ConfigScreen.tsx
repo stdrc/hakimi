@@ -2,7 +2,6 @@ import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { Box, Text, useInput } from 'ink';
 import TextInput from 'ink-text-input';
 import Spinner from 'ink-spinner';
-import { MessageLog, type Message } from '../components/MessageLog.js';
 import { ConfigAgent } from '../services/configAgent.js';
 
 interface ConfigScreenProps {
@@ -11,42 +10,21 @@ interface ConfigScreenProps {
   isActive: boolean;
 }
 
-type InputMode = 'chat' | 'ask_user';
-
-interface PendingQuestion {
-  question: string;
-  resolve: (answer: string) => void;
-}
-
 export function ConfigScreen({ onFinished, onCancel, isActive }: ConfigScreenProps) {
-  const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState('');
-  const [inputMode, setInputMode] = useState<InputMode>('chat');
-  const [pendingQuestion, setPendingQuestion] = useState<PendingQuestion | null>(null);
   const [isProcessing, setIsProcessing] = useState(true);
-  const [isFinished, setIsFinished] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [lastResponse, setLastResponse] = useState<string>('');
   const agentRef = useRef<ConfigAgent | null>(null);
   const currentResponseRef = useRef<string>('');
-
-  const addMessage = useCallback((role: Message['role'], content: string) => {
-    setMessages((prev) => [
-      ...prev,
-      {
-        id: `msg-${Date.now()}-${Math.random()}`,
-        role,
-        content,
-        timestamp: new Date(),
-      },
-    ]);
-  }, []);
+  const pendingResolveRef = useRef<((answer: string) => void) | null>(null);
 
   const flushCurrentResponse = useCallback(() => {
     if (currentResponseRef.current.trim()) {
-      addMessage('assistant', currentResponseRef.current.trim());
+      setLastResponse(currentResponseRef.current.trim());
       currentResponseRef.current = '';
     }
-  }, [addMessage]);
+  }, []);
 
   useEffect(() => {
     const agent = new ConfigAgent({
@@ -56,18 +34,10 @@ export function ConfigScreen({ onFinished, onCancel, isActive }: ConfigScreenPro
       onAskUser: async (question) => {
         flushCurrentResponse();
         return new Promise((resolve) => {
-          setPendingQuestion({ question, resolve });
-          setInputMode('ask_user');
-          setInputValue('');
-          addMessage('assistant', question);
+          pendingResolveRef.current = resolve;
+          setLastResponse(question);
           setIsProcessing(false);
         });
-      },
-      onFinished: () => {
-        flushCurrentResponse();
-        setIsFinished(true);
-        addMessage('system', 'Configuration saved successfully!');
-        setIsProcessing(false);
       },
       onError: (err) => {
         flushCurrentResponse();
@@ -89,7 +59,7 @@ export function ConfigScreen({ onFinished, onCancel, isActive }: ConfigScreenPro
     return () => {
       agent.close();
     };
-  }, [addMessage, flushCurrentResponse]);
+  }, [flushCurrentResponse]);
 
   const handleSubmit = useCallback(
     async (value: string) => {
@@ -98,17 +68,18 @@ export function ConfigScreen({ onFinished, onCancel, isActive }: ConfigScreenPro
       const agent = agentRef.current;
       if (!agent) return;
 
-      if (inputMode === 'ask_user' && pendingQuestion) {
-        addMessage('user', value);
-        pendingQuestion.resolve(value);
-        setPendingQuestion(null);
-        setInputMode('chat');
-        setIsProcessing(true);
-      } else {
-        addMessage('user', value);
-        setIsProcessing(true);
-        flushCurrentResponse();
+      setInputValue('');
+      setIsProcessing(true);
+      setError(null);
 
+      // If there's a pending AskUser, resolve it
+      if (pendingResolveRef.current) {
+        const resolve = pendingResolveRef.current;
+        pendingResolveRef.current = null;
+        resolve(value);
+      } else {
+        // Otherwise send as a new message
+        flushCurrentResponse();
         try {
           await agent.sendMessage(value);
           flushCurrentResponse();
@@ -117,21 +88,15 @@ export function ConfigScreen({ onFinished, onCancel, isActive }: ConfigScreenPro
         }
         setIsProcessing(false);
       }
-
-      setInputValue('');
     },
-    [inputMode, pendingQuestion, addMessage, flushCurrentResponse]
+    [flushCurrentResponse]
   );
 
   useInput(
     (input, key) => {
       if (key.escape) {
         agentRef.current?.close();
-        if (isFinished) {
-          onFinished();
-        } else {
-          onCancel();
-        }
+        onFinished();
       }
     },
     { isActive }
@@ -141,9 +106,8 @@ export function ConfigScreen({ onFinished, onCancel, isActive }: ConfigScreenPro
     <Box flexDirection="column" padding={1}>
       <Box marginBottom={1}>
         <Text bold color="cyan">
-          Adapter Configuration
+          Configure Adapters
         </Text>
-        {isFinished && <Text color="green"> (Complete)</Text>}
       </Box>
 
       {error && (
@@ -152,19 +116,21 @@ export function ConfigScreen({ onFinished, onCancel, isActive }: ConfigScreenPro
         </Box>
       )}
 
-      <MessageLog messages={messages} maxHeight={15} />
+      {lastResponse && (
+        <Box marginBottom={1} flexDirection="column">
+          <Text>{lastResponse}</Text>
+        </Box>
+      )}
 
-      <Box marginTop={1}>
+      <Box>
         {isProcessing ? (
           <Box>
             <Spinner type="dots" />
-            <Text color="gray"> Thinking...</Text>
+            <Text color="gray"> ...</Text>
           </Box>
         ) : (
           <Box>
-            <Text color={inputMode === 'ask_user' ? 'yellow' : 'blue'}>
-              {inputMode === 'ask_user' ? '? ' : '> '}
-            </Text>
+            <Text color="green">&gt; </Text>
             <TextInput
               value={inputValue}
               onChange={setInputValue}
@@ -175,7 +141,7 @@ export function ConfigScreen({ onFinished, onCancel, isActive }: ConfigScreenPro
       </Box>
 
       <Box marginTop={1}>
-        <Text color="gray">[Esc] {isFinished ? 'Done' : 'Cancel'}</Text>
+        <Text color="gray">[Esc] Exit</Text>
       </Box>
     </Box>
   );

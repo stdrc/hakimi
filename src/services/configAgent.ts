@@ -16,7 +16,6 @@ function generateSessionId(): string {
 export interface ConfigAgentCallbacks {
   onText: (text: string) => void;
   onAskUser: (question: string) => Promise<string>;
-  onFinished: () => void;
   onError: (error: Error) => void;
 }
 
@@ -86,22 +85,12 @@ export class ConfigAgent {
       },
     });
 
-    const finishTool = createExternalTool({
-      name: 'Finish',
-      description: 'Finish the configuration wizard',
-      parameters: z.object({}),
-      handler: async () => {
-        this.callbacks.onFinished();
-        return { output: 'Configuration wizard finished', message: '' };
-      },
-    });
-
     this.session = createSession({
       workDir: HAKIMI_DIR,
       sessionId: generateSessionId(),
       thinking: false,
       yoloMode: true,
-      externalTools: [askUserTool, readConfigTool, writeConfigTool, finishTool],
+      externalTools: [askUserTool, readConfigTool, writeConfigTool],
     });
 
     // Send initial prompt with system instructions and current config
