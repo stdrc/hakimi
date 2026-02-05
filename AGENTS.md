@@ -12,9 +12,10 @@ Hakimi is a TUI (Terminal User Interface) application that bridges instant messa
 ### Core Features
 
 1. **Kimi Login**: OAuth-based login to Kimi Code account via `kimi login --json`
-2. **AI-Guided Configuration**: Interactive wizard to configure bot accounts
-3. **Chat Routing**: Routes messages from chat platforms to Kimi Code CLI agent sessions
+2. **Terminal Chat**: Built-in chat interface for direct interaction with the AI
+3. **Chat Routing**: Routes messages from IM platforms to Kimi Code CLI agent sessions
 4. **Multi-Platform Support**: Telegram, Slack, and Feishu (Lark)
+5. **Self-Configuration**: The AI can configure bot accounts through chat
 
 ## Tech Stack
 
@@ -36,28 +37,21 @@ hakimi/
 ├── tsconfig.json             # TypeScript configuration
 ├── patches/                  # patch-package patches for dependencies
 │   ├── @koishijs+loader+4.6.10.patch
-│   └── @moonshot-ai+kimi-agent-sdk+0.0.6.patch
-├── prompts/
-│   └── config-agent.md       # System prompt for config wizard AI
+│   ├── @moonshot-ai+kimi-agent-sdk+0.0.6.patch
+│   └── @satorijs+core+4.5.2.patch
 ├── src/
-│   ├── index.tsx             # Entry point with error handlers
+│   ├── index.tsx             # Entry point with CLI arg parsing
 │   ├── App.tsx               # Main app, screen routing, ChatRouter
-│   ├── components/           # Reusable UI components
-│   │   ├── StatusBar.tsx     # Login/bot status display
-│   │   └── HotkeyHint.tsx    # Hotkey hints bar
-│   ├── screens/              # Screen components (pages)
-│   │   ├── HomeScreen.tsx    # Main menu (L, C, S, Q hotkeys)
-│   │   ├── LoginScreen.tsx   # OAuth login flow UI
-│   │   └── ConfigScreen.tsx  # Config wizard chat UI
-│   ├── services/             # Business logic
+│   ├── components/
+│   │   └── StatusBar.tsx     # Login/bot status display
+│   ├── screens/
+│   │   ├── HomeScreen.tsx    # Main chat interface with status
+│   │   └── LoginScreen.tsx   # OAuth login flow UI
+│   ├── services/
 │   │   ├── loginService.ts   # Spawns `kimi login --json`, parses events
-│   │   ├── configAgent.ts    # ConfigAgent class for config wizard
-│   │   ├── theAgent.ts       # TheAgent class for chat sessions
+│   │   ├── theAgent.ts       # TheAgent class for all chat sessions
 │   │   ├── chatRouter.ts     # ChatRouter: Koishi setup, message handling
 │   │   └── sessionCache.ts   # Generic TTL cache for chat sessions
-│   ├── tools/                # Agent tool definitions (Zod schemas)
-│   │   ├── askUser.ts        # AskUser tool schema
-│   │   └── sendMessage.ts    # SendMessage tool schema
 │   └── utils/
 │       ├── paths.ts          # Path constants, language detection
 │       └── config.ts         # TOML config read/write helpers
@@ -81,8 +75,6 @@ npm start
 
 # Run with debug logging
 npm start -- --debug
-# or in dev mode
-npm run dev -- --debug
 
 # Run with custom working directory
 npm start -- --workdir /path/to/project
@@ -168,75 +160,73 @@ appSecret = "..."
 ### Screen Routing
 
 The app uses a simple state-based screen routing in `App.tsx`:
-- `home`: Main menu with status and hotkeys
+- `home`: Main chat interface with status bar
 - `login`: OAuth login flow
-- `config`: AI-guided configuration wizard
 
 ### ChatRouter
 
-`ChatRouter` in `src/services/chatRouter.ts` is the core message routing service:
+`ChatRouter` in `src/services/chatRouter.ts` is the core IM message routing service:
 1. Loads bot account configurations from Hakimi config
 2. Initializes Koishi context with bot adapters
-3. Listens for incoming messages
+3. Listens for incoming messages from IM platforms
 4. Creates/retrieves `TheAgent` instances for each chat session
 5. Handles message queuing when agent is processing
 
 **Auto-start behavior:**
 - On startup, if bot accounts are configured, chat service starts automatically
-- After configuration changes (via `C`), chat service automatically restarts with new config
+- After configuration changes, chat service automatically restarts with new config
 - Errors during startup are caught and displayed in the status bar (won't crash the app)
 
 ### Session Management
 
-- **Session ID Format**: `{platform}-{botId}-{userId}`
-- **TTL**: 5 minutes of inactivity
+- **Session ID Format**: `{platform}-{botId}-{userId}` for IM, `terminal` for local
+- **TTL**: 5 minutes of inactivity (IM sessions only)
 - **Behavior**: Sessions are cached and reused; new messages during processing are queued
 
-### Agent Architecture
+### TheAgent
 
-Two agent types are used:
+`TheAgent` in `src/services/theAgent.ts` handles all chat sessions (both terminal and IM):
 
-1. **ConfigAgent** (`configAgent.ts`): Guides users through bot account configuration
-   - Tools: `AskUser`, `ReadConfig`, `WriteConfig`
-   - The agent reads/writes config directly; user can exit anytime with Esc
-   - Prompt: `prompts/config-agent.md`
+**Tools:**
+- `SendMessage`: Send a message to the user (required for all responses)
+- `ReadHakimiConfig`: Read current Hakimi configuration
+- `WriteHakimiConfig`: Write Hakimi configuration (triggers bot reload)
 
-2. **TheAgent** (`theAgent.ts`): Handles chat messages from platforms
-   - Tools: `SendMessage`
-   - Uses dynamic YAML agent file for customization
-   - Agent MUST use `SendMessage` tool to reply (assistant content is ignored)
+**Features:**
+- Uses dynamic YAML agent file for customization
+- Agent MUST use `SendMessage` tool to reply (assistant content is ignored)
+- Configuration knowledge is embedded in the system prompt
 
 ### Patches
 
-The project patches two dependencies via `patch-package`:
+The project patches dependencies via `patch-package`:
 
 1. **@koishijs/loader**: Fixes ESM default export issue
 2. **@moonshot-ai/kimi-agent-sdk**: Adds `agentFile` option to customize agent behavior
+3. **@satorijs/core**: Fixes bot dispose error when `ctx.bots` is undefined
 
 ## Hotkeys
 
 | Screen | Key | Action |
 |--------|-----|--------|
-| Home | `L` | Login to Kimi |
-| Home | `C` | Configure bot accounts (requires login) |
-| Home | `S` | Start/Stop chat service (auto-starts if configured) |
-| Home | `Q` | Quit |
-| Login/Config | `Esc` | Cancel/Back |
+| Home (not logged in) | `L` | Login to Kimi Code |
+| Home | `Esc` | Quit |
+| Login | `Esc` | Cancel |
 
 ## Testing
 
 No automated tests are currently implemented. Manual testing workflow:
 
 1. Run `npm run dev` to start in development mode
-2. Press `L` to test login flow
-3. Press `C` to test configuration wizard
-4. Press `S` to start chat service
-5. Send messages via configured chat platform
+2. Press `L` to login if not logged in
+3. Chat with the AI in the terminal
+4. Ask the AI to configure bot accounts (e.g., "Help me set up a Telegram bot")
+5. Send messages via configured chat platforms
 
 ## Security Considerations
 
 - Bot tokens and secrets are stored in plain text in `~/.hakimi/config.toml`
-- The application has access to user's home directory via Kimi Code CLI
+- Default working directory is `~/.hakimi/workspace` (not home directory)
 - Only private messages are processed; group messages are ignored
 - No authentication layer between chat platform and Kimi CLI
 
@@ -248,7 +238,7 @@ No automated tests are currently implemented. Manual testing workflow:
 $ hakimi --help
 
   Options
-    --workdir, -w  Working directory for the agent (default: home directory)
+    --workdir, -w  Working directory for the agent (default: ~/.hakimi/workspace)
     --debug        Enable debug logging
     --help         Show this help message
     --version      Show version number

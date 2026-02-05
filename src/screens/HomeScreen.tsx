@@ -1,57 +1,102 @@
-import React from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { Box, Text, useInput } from 'ink';
+import TextInput from 'ink-text-input';
+import Spinner from 'ink-spinner';
 import { StatusBar } from '../components/StatusBar.js';
-import { HotkeyHint } from '../components/HotkeyHint.js';
 import type { BotStatusInfo } from '../services/chatRouter.js';
+import { TheAgent } from '../services/theAgent.js';
 
 interface HomeScreenProps {
   isLoggedIn: boolean;
-  botAccountsConfigured: number;
   botStatuses: BotStatusInfo[];
   chatError: string | null;
-  chatRunning: boolean;
   workDir: string;
+  agentName: string;
   onLogin: () => void;
-  onConfig: () => void;
-  onChat: () => void;
+  onConfigChange: () => void;
   onQuit: () => void;
   isActive: boolean;
+  debug?: boolean;
 }
 
 export function HomeScreen({
   isLoggedIn,
-  botAccountsConfigured,
   botStatuses,
   chatError,
-  chatRunning,
   workDir,
+  agentName,
   onLogin,
-  onConfig,
-  onChat,
+  onConfigChange,
   onQuit,
   isActive,
+  debug,
 }: HomeScreenProps) {
+  const [inputValue, setInputValue] = useState('');
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [lastResponse, setLastResponse] = useState<string>('');
+  const [error, setError] = useState<string | null>(null);
+  const agentRef = useRef<TheAgent | null>(null);
+  const agentStartedRef = useRef(false);
+
+  // Initialize terminal agent when logged in
+  useEffect(() => {
+    if (!isLoggedIn || agentStartedRef.current) return;
+    agentStartedRef.current = true;
+
+    const agent = new TheAgent('terminal', agentName, {
+      onSend: async (message) => {
+        setLastResponse(message);
+      },
+      onLog: debug ? (msg) => console.log(`[Agent] ${msg}`) : undefined,
+      onConfigChange,
+      workDir,
+      isTerminal: true,
+    });
+
+    agentRef.current = agent;
+
+    agent.start().catch((err) => {
+      setError(err.message);
+    });
+
+    return () => {
+      agent.close();
+    };
+  }, [isLoggedIn, agentName, workDir, onConfigChange, debug]);
+
+  const handleSubmit = useCallback(async (value: string) => {
+    if (!value.trim()) return;
+
+    const agent = agentRef.current;
+    if (!agent) {
+      setError('Agent not ready');
+      return;
+    }
+
+    setInputValue('');
+    setIsProcessing(true);
+    setError(null);
+    setLastResponse('');
+
+    try {
+      await agent.sendMessage(value);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setIsProcessing(false);
+    }
+  }, []);
+
   useInput(
-    (input) => {
-      if (input === 'l' || input === 'L') {
-        onLogin();
-      } else if ((input === 'c' || input === 'C') && isLoggedIn) {
-        onConfig();
-      } else if ((input === 's' || input === 'S') && isLoggedIn && botAccountsConfigured > 0) {
-        onChat();
-      } else if (input === 'q' || input === 'Q') {
+    (input, key) => {
+      if (key.escape) {
         onQuit();
+      } else if ((input === 'l' || input === 'L') && !isLoggedIn) {
+        onLogin();
       }
     },
-    { isActive }
+    { isActive: isActive && !isProcessing }
   );
-
-  const hints = [
-    { key: 'L', label: 'Login', disabled: isLoggedIn },
-    { key: 'C', label: 'Configure', disabled: !isLoggedIn },
-    { key: 'S', label: chatRunning ? 'Stop' : 'Start', disabled: !isLoggedIn || botAccountsConfigured === 0 },
-    { key: 'Q', label: 'Quit' },
-  ];
 
   return (
     <Box flexDirection="column" padding={1}>
@@ -68,17 +113,49 @@ export function HomeScreen({
         workDir={workDir}
       />
 
-      <HotkeyHint hints={hints} />
-
-      {!isLoggedIn && (
-        <Box marginTop={1}>
-          <Text color="yellow">Press L to login to Kimi first</Text>
+      {!isLoggedIn ? (
+        <Box marginTop={1} flexDirection="column">
+          <Text color="yellow">Press L to login to Kimi Code first</Text>
+          <Box marginTop={1}>
+            <Text color="gray">[L] Login  [Esc] Quit</Text>
+          </Box>
         </Box>
-      )}
+      ) : (
+        <Box marginTop={1} flexDirection="column">
+          {error && (
+            <Box marginBottom={1}>
+              <Text color="red">Error: {error}</Text>
+            </Box>
+          )}
 
-      {isLoggedIn && botAccountsConfigured === 0 && (
-        <Box marginTop={1}>
-          <Text color="yellow">Press C to configure bot accounts</Text>
+          {lastResponse && (
+            <Box marginBottom={1}>
+              <Text color="green">{agentName}: </Text>
+              <Text>{lastResponse}</Text>
+            </Box>
+          )}
+
+          <Box>
+            {isProcessing ? (
+              <Box>
+                <Spinner type="dots" />
+                <Text color="gray"> ...</Text>
+              </Box>
+            ) : (
+              <Box>
+                <Text color="cyan">You: </Text>
+                <TextInput
+                  value={inputValue}
+                  onChange={setInputValue}
+                  onSubmit={handleSubmit}
+                />
+              </Box>
+            )}
+          </Box>
+
+          <Box marginTop={1}>
+            <Text color="gray">[Esc] Quit</Text>
+          </Box>
         </Box>
       )}
     </Box>

@@ -4,11 +4,10 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { HomeScreen } from './screens/HomeScreen.js';
 import { LoginScreen } from './screens/LoginScreen.js';
-import { ConfigScreen } from './screens/ConfigScreen.js';
 import { isLoggedIn as checkLoggedIn, readHakimiConfig } from './utils/config.js';
 import { ChatRouter, type ChatSession, type BotStatusInfo } from './services/chatRouter.js';
 
-type Screen = 'home' | 'login' | 'config';
+type Screen = 'home' | 'login';
 
 interface AppProps {
   debug?: boolean;
@@ -20,7 +19,7 @@ export function App({ debug = false, workDir }: AppProps) {
   const effectiveWorkDir = workDir || join(homedir(), '.hakimi', 'workspace');
   const [screen, setScreen] = useState<Screen>('home');
   const [loggedIn, setLoggedIn] = useState(false);
-  const [botAccountsConfigured, setBotAccountsConfigured] = useState(0);
+  const [agentName, setAgentName] = useState('Hakimi');
   const [botStatuses, setBotStatuses] = useState<BotStatusInfo[]>([]);
   const [chatError, setChatError] = useState<string | null>(null);
   const [logs, setLogs] = useState<string[]>([]);
@@ -74,17 +73,12 @@ export function App({ debug = false, workDir }: AppProps) {
     }
   }, [chatRouter]);
 
-  const stopChat = useCallback(async () => {
-    await chatRouter.stop();
-    setChatError(null);
-  }, [chatRouter]);
-
   const refreshStatus = useCallback(async () => {
     const isLogged = await checkLoggedIn();
     setLoggedIn(isLogged);
 
     const config = await readHakimiConfig();
-    setBotAccountsConfigured(config?.botAccounts?.length ?? 0);
+    setAgentName(config?.agentName || 'Hakimi');
 
     return { isLogged, botAccountsCount: config?.botAccounts?.length ?? 0 };
   }, []);
@@ -108,21 +102,10 @@ export function App({ debug = false, workDir }: AppProps) {
     refreshStatus();
   }, [refreshStatus]);
 
-  const handleConfigFinished = useCallback(async () => {
-    setScreen('home');
-    const { botAccountsCount } = await refreshStatus();
-    if (botAccountsCount > 0) {
-      await restartChat();
-    }
+  const handleConfigChange = useCallback(async () => {
+    await refreshStatus();
+    await restartChat();
   }, [refreshStatus, restartChat]);
-
-  const handleToggleChat = useCallback(async () => {
-    if (chatRouter.running) {
-      await stopChat();
-    } else {
-      await startChat();
-    }
-  }, [chatRouter.running, startChat, stopChat]);
 
   const handleQuit = useCallback(async () => {
     if (chatRouter.running) {
@@ -136,16 +119,15 @@ export function App({ debug = false, workDir }: AppProps) {
       {screen === 'home' && (
         <HomeScreen
           isLoggedIn={loggedIn}
-          botAccountsConfigured={botAccountsConfigured}
           botStatuses={botStatuses}
           chatError={chatError}
-          chatRunning={chatRouter.running}
           workDir={effectiveWorkDir}
+          agentName={agentName}
           onLogin={() => setScreen('login')}
-          onConfig={() => setScreen('config')}
-          onChat={handleToggleChat}
+          onConfigChange={handleConfigChange}
           onQuit={handleQuit}
           isActive={screen === 'home'}
+          debug={debug}
         />
       )}
 
@@ -154,14 +136,6 @@ export function App({ debug = false, workDir }: AppProps) {
           onSuccess={handleLoginSuccess}
           onCancel={() => setScreen('home')}
           isActive={screen === 'login'}
-        />
-      )}
-
-      {screen === 'config' && (
-        <ConfigScreen
-          onFinished={handleConfigFinished}
-          onCancel={() => setScreen('home')}
-          isActive={screen === 'config'}
         />
       )}
 
@@ -178,7 +152,7 @@ export function App({ debug = false, workDir }: AppProps) {
 
       {chatRouter.running && lastMessage && (
         <Box marginTop={1} paddingX={1}>
-          <Text color="gray">上次收到: </Text>
+          <Text color="gray">Last IM: </Text>
           <Text color="cyan">[{lastMessage.sessionId}] </Text>
           <Text>{lastMessage.content.length > 50 ? lastMessage.content.slice(0, 50) + '...' : lastMessage.content}</Text>
         </Box>

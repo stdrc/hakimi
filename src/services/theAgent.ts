@@ -4,13 +4,37 @@ import { existsSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { z } from 'zod';
-import { getLanguageInstruction } from '../utils/paths.js';
+import { getLanguageInstruction, HAKIMI_CONFIG } from '../utils/paths.js';
+import { readHakimiConfig, writeHakimiConfig, type HakimiConfig } from '../utils/config.js';
 
 const DEFAULT_WORK_DIR = join(homedir(), '.hakimi', 'workspace');
 const AGENT_YAML_DIR = '/tmp/hakimi/agents';
 
-function generateAgentYaml(agentName: string): string {
+const CONFIG_KNOWLEDGE = `
+      ## Hakimi Configuration
+
+      You can help users configure bot accounts using ReadHakimiConfig and WriteHakimiConfig tools.
+      Config file: ~/.hakimi/config.toml
+
+      ### Config Format (TOML)
+      agentName = "Hakimi"
+      [[botAccounts]]
+      type = "telegram"
+      [botAccounts.config]
+      protocol = "polling"
+      token = "BOT_TOKEN"
+
+      ### Available Bot Account Types
+      - Telegram: protocol ("polling" or "server"), token (from @BotFather)
+      - Slack: protocol ("ws"), token (xapp-...), botToken (xoxb-...)
+      - Feishu: protocol ("ws"), appId, appSecret`;
+
+function generateAgentYaml(agentName: string, isTerminal: boolean): string {
   const langInstruction = getLanguageInstruction();
+  const platformNote = isTerminal
+    ? 'You are running in a terminal interface.'
+    : 'You are accessible via instant messaging platforms (Telegram/Slack/Feishu).';
+  
   return `version: 1
 agent:
   extend: default
@@ -19,7 +43,7 @@ agent:
       <role>
       Your name is "${agentName}". You are powered by Kimi Code CLI (the underlying agent framework), but your identity to users is "${agentName}". Always introduce yourself as "${agentName}", not as "Kimi" or "Kimi Code".
 
-      You are accessible via instant messaging platforms (Telegram/Slack/Feishu).
+      ${platformNote}
 
       You have PERSISTENT conversation history with each user. Your session is preserved across messages and even across app restarts. You CAN and SHOULD remember what you discussed with the user earlier in this conversation. Never claim you "cannot access previous messages" or "don't have memory" - you do have full context of the conversation history.
 
@@ -27,10 +51,8 @@ agent:
 
       IMPORTANT: You MUST use the SendMessage tool to reply to the user. Do NOT put your reply in the assistant message content - it will be ignored. Only messages sent via SendMessage will reach the user.
 
-      IMPORTANT: Prefer calling SendMessage multiple times with shorter messages rather than one long message. This provides better user experience on IM platforms - users see responses progressively instead of waiting for a wall of text. For example:
-      - Send a greeting first, then details
-      - Send each major point separately
-      - Send code blocks as separate messages
+      IMPORTANT: Prefer calling SendMessage multiple times with shorter messages rather than one long message. This provides better user experience - users see responses progressively instead of waiting for a wall of text.
+      ${CONFIG_KNOWLEDGE}
       </role>
 `;
 }
@@ -38,7 +60,9 @@ agent:
 export interface TheAgentCallbacks {
   onSend: (message: string) => Promise<void>;
   onLog?: (message: string) => void;
+  onConfigChange?: () => void;
   workDir?: string;
+  isTerminal?: boolean;
 }
 
 export class TheAgent {
@@ -48,6 +72,7 @@ export class TheAgent {
   private sessionId: string;
   private agentName: string;
   private workDir: string;
+  private isTerminal: boolean;
   private didSendMessage = false;
 
   constructor(sessionId: string, agentName: string, callbacks: TheAgentCallbacks) {
@@ -55,6 +80,7 @@ export class TheAgent {
     this.agentName = agentName;
     this.callbacks = callbacks;
     this.workDir = callbacks.workDir || DEFAULT_WORK_DIR;
+    this.isTerminal = callbacks.isTerminal || false;
   }
 
   private log(message: string): void {
@@ -77,7 +103,7 @@ export class TheAgent {
 
     // Generate agent YAML with configured name
     const agentFile = join(AGENT_YAML_DIR, `${kimiSessionId}.yaml`);
-    await writeFile(agentFile, generateAgentYaml(this.agentName), 'utf-8');
+    await writeFile(agentFile, generateAgentYaml(this.agentName, this.isTerminal), 'utf-8');
 
     const sendMessageTool = createExternalTool({
       name: 'SendMessage',
@@ -93,13 +119,45 @@ export class TheAgent {
       },
     });
 
+    const readConfigTool = createExternalTool({
+      name: 'ReadHakimiConfig',
+      description: `Read the current Hakimi configuration from ${HAKIMI_CONFIG}`,
+      parameters: z.object({}),
+      handler: async () => {
+        const config = await readHakimiConfig();
+        if (!config) {
+          return { output: 'Config file does not exist yet', message: '' };
+        }
+        return { output: JSON.stringify(config, null, 2), message: '' };
+      },
+    });
+
+    const writeConfigTool = createExternalTool({
+      name: 'WriteHakimiConfig',
+      description: `Write Hakimi configuration to ${HAKIMI_CONFIG}. After writing, bot accounts will be automatically reloaded.`,
+      parameters: z.object({
+        config: z.object({
+          agentName: z.string().optional().describe('Name for the AI assistant'),
+          botAccounts: z.array(z.object({
+            type: z.enum(['telegram', 'slack', 'feishu']),
+            config: z.record(z.any()),
+          })).optional().describe('List of bot account configurations'),
+        }).describe('The configuration object to write'),
+      }),
+      handler: async (params) => {
+        await writeHakimiConfig(params.config as HakimiConfig);
+        this.callbacks.onConfigChange?.();
+        return { output: 'Configuration saved successfully. Bot accounts will be reloaded.', message: '' };
+      },
+    });
+
     const sessionOptions = {
       workDir: this.workDir,
       sessionId: kimiSessionId,
       agentFile,
       thinking: false,
       yoloMode: true,
-      externalTools: [sendMessageTool],
+      externalTools: [sendMessageTool, readConfigTool, writeConfigTool],
     };
     this.log(`Creating session with options: ${JSON.stringify({ ...sessionOptions, externalTools: '[...]' })}`);
 
@@ -116,20 +174,27 @@ export class TheAgent {
     // Reset send flag
     this.didSendMessage = false;
 
-    // Send user message
-    await this.runPrompt(`User message: ${content}`);
+    try {
+      // Send user message
+      await this.runPrompt(`User message: ${content}`);
 
-    // If agent didn't use SendMessage, prompt again
-    let retries = 0;
-    while (!this.didSendMessage && retries < 3) {
-      retries++;
-      this.log(`Agent did not send message, prompting again (retry ${retries})...`);
-      await this.runPrompt('You did not send a message to the user. Please use the SendMessage tool to reply.');
-    }
+      // If agent didn't use SendMessage, prompt again
+      let retries = 0;
+      while (!this.didSendMessage && retries < 3) {
+        retries++;
+        this.log(`Agent did not send message, prompting again (retry ${retries})...`);
+        await this.runPrompt('You did not send a message to the user. Please use the SendMessage tool to reply.');
+      }
 
-    if (!this.didSendMessage) {
-      this.log('Agent failed to send message after retries');
-      await this.callbacks.onSend('Sorry, I encountered an error processing your message.');
+      if (!this.didSendMessage) {
+        this.log('Agent failed to send message after retries');
+        await this.callbacks.onSend('Sorry, I encountered an error processing your message.');
+      }
+    } catch (error) {
+      this.log(`Error in sendMessage: ${error}`);
+      // Send error message to user instead of throwing
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      await this.callbacks.onSend(`Sorry, an error occurred: ${errorMsg}`);
     }
   }
 
