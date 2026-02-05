@@ -84,6 +84,11 @@ npm start
 npm start -- --debug
 # or in dev mode
 npm run dev -- --debug
+
+# Run with custom working directory
+npm start -- --workdir /path/to/project
+# or with short flag
+npm start -- -w /path/to/project
 ```
 
 ## Code Style Guidelines
@@ -177,6 +182,11 @@ The app uses a simple state-based screen routing in `App.tsx`:
 4. Creates/retrieves `TheAgent` instances for each chat session
 5. Handles message queuing when agent is processing
 
+**Auto-start behavior:**
+- On startup, if adapters are configured, chat service starts automatically
+- After configuration changes (via `C`), chat service automatically restarts with new config
+- Errors during startup are caught and displayed in the status bar (won't crash the app)
+
 ### Session Management
 
 - **Session ID Format**: `{platform}-{botId}-{userId}`
@@ -210,7 +220,7 @@ The project patches two dependencies via `patch-package`:
 |--------|-----|--------|
 | Home | `L` | Login to Kimi |
 | Home | `C` | Configure adapters (requires login) |
-| Home | `S` | Start/Stop chat service (requires adapters) |
+| Home | `S` | Start/Stop chat service (auto-starts if configured) |
 | Home | `Q` | Quit |
 | Login/Config | `Esc` | Cancel/Back |
 
@@ -232,6 +242,18 @@ No automated tests are currently implemented. Manual testing workflow:
 - No authentication layer between chat platform and Kimi CLI
 
 ## Debugging
+
+### Command Line Options
+
+```bash
+$ hakimi --help
+
+  Options
+    --workdir, -w  Working directory for the agent (default: home directory)
+    --debug        Enable debug logging
+    --help         Show this help message
+    --version      Show version number
+```
 
 Run with `--debug` flag to see detailed logs:
 
@@ -255,6 +277,7 @@ Debug mode shows:
 - `@koishijs/plugin-adapter-*`: Platform adapters
 - `@moonshot-ai/kimi-agent-sdk`: Kimi AI agent SDK
 - `@iarna/toml`: TOML parser/serializer
+- `meow`: CLI argument parsing
 - `zod`: Schema validation
 
 ### Dev Dependencies

@@ -7,6 +7,8 @@ interface HomeScreenProps {
   isLoggedIn: boolean;
   adaptersConfigured: number;
   chatActive: boolean;
+  chatError: string | null;
+  workDir: string;
   onLogin: () => void;
   onConfig: () => void;
   onChat: () => void;
@@ -18,6 +20,8 @@ export function HomeScreen({
   isLoggedIn,
   adaptersConfigured,
   chatActive,
+  chatError,
+  workDir,
   onLogin,
   onConfig,
   onChat,
@@ -58,6 +62,8 @@ export function HomeScreen({
         isLoggedIn={isLoggedIn}
         adaptersConfigured={adaptersConfigured}
         chatActive={chatActive}
+        chatError={chatError}
+        workDir={workDir}
       />
 
       <HotkeyHint hints={hints} />

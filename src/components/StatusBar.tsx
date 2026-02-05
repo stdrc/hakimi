@@ -5,9 +5,11 @@ interface StatusBarProps {
   isLoggedIn: boolean;
   adaptersConfigured: number;
   chatActive: boolean;
+  chatError: string | null;
+  workDir: string;
 }
 
-export function StatusBar({ isLoggedIn, adaptersConfigured, chatActive }: StatusBarProps) {
+export function StatusBar({ isLoggedIn, adaptersConfigured, chatActive, chatError, workDir }: StatusBarProps) {
   return (
     <Box borderStyle="single" paddingX={1} flexDirection="column">
       <Text bold>Hakimi Status</Text>
@@ -29,11 +31,22 @@ export function StatusBar({ isLoggedIn, adaptersConfigured, chatActive }: Status
       </Box>
       <Box>
         <Text>Chat: </Text>
-        {chatActive ? (
+        {chatError ? (
+          <Text color="red">Error</Text>
+        ) : chatActive ? (
           <Text color="green">Active</Text>
         ) : (
           <Text color="gray">Inactive</Text>
         )}
+      </Box>
+      {chatError && (
+        <Box>
+          <Text color="red">  └─ {chatError}</Text>
+        </Box>
+      )}
+      <Box>
+        <Text>WorkDir: </Text>
+        <Text color="cyan">{workDir}</Text>
       </Box>
     </Box>
   );

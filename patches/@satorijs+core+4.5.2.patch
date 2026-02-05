@@ -1,0 +1,13 @@
+diff --git a/node_modules/@satorijs/core/lib/index.cjs b/node_modules/@satorijs/core/lib/index.cjs
+index a4f5ca0..6f8ab32 100644
+--- a/node_modules/@satorijs/core/lib/index.cjs
++++ b/node_modules/@satorijs/core/lib/index.cjs
+@@ -396,7 +396,7 @@ var Bot = class {
+     this.status = status;
+   }
+   dispose() {
+-    const index = this.ctx.bots.findIndex((bot) => bot.sid === this.sid);
++    const index = this.ctx.bots?.findIndex((bot) => bot.sid === this.sid);
+     if (index >= 0) {
+       this.ctx.bots.splice(index, 1);
+       this.context.emit("bot-removed", this);

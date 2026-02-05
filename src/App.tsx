@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Box, Text, useApp } from 'ink';
+import { homedir } from 'node:os';
 import { HomeScreen } from './screens/HomeScreen.js';
 import { LoginScreen } from './screens/LoginScreen.js';
 import { ConfigScreen } from './screens/ConfigScreen.js';
@@ -10,18 +11,22 @@ type Screen = 'home' | 'login' | 'config';
 
 interface AppProps {
   debug?: boolean;
+  workDir?: string;
 }
 
-export function App({ debug = false }: AppProps) {
+export function App({ debug = false, workDir }: AppProps) {
   const { exit } = useApp();
+  const effectiveWorkDir = workDir || homedir();
   const [screen, setScreen] = useState<Screen>('home');
   const [loggedIn, setLoggedIn] = useState(false);
   const [adaptersConfigured, setAdaptersConfigured] = useState(0);
   const [chatActive, setChatActive] = useState(false);
+  const [chatError, setChatError] = useState<string | null>(null);
   const [logs, setLogs] = useState<string[]>([]);
   const [lastMessage, setLastMessage] = useState<{ sessionId: string; content: string } | null>(null);
   const logsRef = useRef(logs);
   logsRef.current = logs;
+  const initializedRef = useRef(false);
 
   const addLog = useCallback((message: string) => {
     const timestamp = new Date().toLocaleTimeString();
@@ -36,16 +41,46 @@ export function App({ debug = false }: AppProps) {
           if (debug) addLog(`Message [${sessionId}]: ${content}`);
         },
         onSessionStart: (session: ChatSession) => {
-          addLog(`Session started: ${session.sessionId}`);
+          if (debug) addLog(`Session started: ${session.sessionId}`);
         },
         onSessionEnd: (sessionId) => {
-          addLog(`Session ended: ${sessionId}`);
+          if (debug) addLog(`Session ended: ${sessionId}`);
         },
         onLog: (message) => {
           if (debug) addLog(message);
         },
+        debug,
+        workDir,
       })
   );
+
+  const startChat = useCallback(async () => {
+    setChatError(null);
+    const result = await chatRouter.start();
+    if (result.success) {
+      setChatActive(true);
+    } else {
+      setChatError(result.error || 'Unknown error');
+      setChatActive(false);
+    }
+  }, [chatRouter]);
+
+  const restartChat = useCallback(async () => {
+    setChatError(null);
+    const result = await chatRouter.restart();
+    if (result.success) {
+      setChatActive(true);
+    } else {
+      setChatError(result.error || 'Unknown error');
+      setChatActive(false);
+    }
+  }, [chatRouter]);
+
+  const stopChat = useCallback(async () => {
+    await chatRouter.stop();
+    setChatActive(false);
+    setChatError(null);
+  }, [chatRouter]);
 
   const refreshStatus = useCallback(async () => {
     const isLogged = await checkLoggedIn();
@@ -53,11 +88,22 @@ export function App({ debug = false }: AppProps) {
 
     const config = await readHakimiConfig();
     setAdaptersConfigured(config?.adapters?.length ?? 0);
+
+    return { isLogged, adaptersCount: config?.adapters?.length ?? 0 };
   }, []);
 
+  // Initial load: check status and auto-start if configured
   useEffect(() => {
-    refreshStatus();
-  }, [refreshStatus]);
+    if (initializedRef.current) return;
+    initializedRef.current = true;
+
+    (async () => {
+      const { adaptersCount } = await refreshStatus();
+      if (adaptersCount > 0) {
+        await startChat();
+      }
+    })();
+  }, [refreshStatus, startChat]);
 
   const handleLoginSuccess = useCallback(() => {
     setLoggedIn(true);
@@ -65,24 +111,21 @@ export function App({ debug = false }: AppProps) {
     refreshStatus();
   }, [refreshStatus]);
 
-  const handleConfigFinished = useCallback(() => {
+  const handleConfigFinished = useCallback(async () => {
     setScreen('home');
-    refreshStatus();
-  }, [refreshStatus]);
+    const { adaptersCount } = await refreshStatus();
+    if (adaptersCount > 0) {
+      await restartChat();
+    }
+  }, [refreshStatus, restartChat]);
 
   const handleToggleChat = useCallback(async () => {
     if (chatActive) {
-      await chatRouter.stop();
-      setChatActive(false);
+      await stopChat();
     } else {
-      try {
-        await chatRouter.start();
-        setChatActive(true);
-      } catch (error) {
-        console.error('Failed to start chat:', error);
-      }
+      await startChat();
     }
-  }, [chatActive, chatRouter]);
+  }, [chatActive, startChat, stopChat]);
 
   const handleQuit = useCallback(async () => {
     if (chatRouter.running) {
@@ -98,6 +141,8 @@ export function App({ debug = false }: AppProps) {
           isLoggedIn={loggedIn}
           adaptersConfigured={adaptersConfigured}
           chatActive={chatActive}
+          chatError={chatError}
+          workDir={effectiveWorkDir}
           onLogin={() => setScreen('login')}
           onConfig={() => setScreen('config')}
           onChat={handleToggleChat}
@@ -133,7 +178,7 @@ export function App({ debug = false }: AppProps) {
         </Box>
       )}
 
-      {chatActive && !debug && lastMessage && (
+      {chatActive && lastMessage && (
         <Box marginTop={1} paddingX={1}>
           <Text color="gray">上次收到: </Text>
           <Text color="cyan">[{lastMessage.sessionId}] </Text>

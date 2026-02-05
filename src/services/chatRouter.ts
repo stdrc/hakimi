@@ -18,6 +18,8 @@ export interface ChatRouterOptions {
   onSessionStart: (session: ChatSession) => void;
   onSessionEnd: (sessionId: string) => void;
   onLog?: (message: string) => void;
+  debug?: boolean;
+  workDir?: string;
 }
 
 // Dynamic import types
@@ -37,6 +39,21 @@ export class ChatRouter {
     this.sessionCache = new SessionCache<ChatSession>((sessionId) => {
       this.options.onSessionEnd(sessionId);
     });
+
+    // Suppress koishi/reggol logs unless debug mode
+    if (!options.debug) {
+      this.suppressKoishiLogs();
+    }
+  }
+
+  private async suppressKoishiLogs(): Promise<void> {
+    try {
+      const reggol = await import('reggol');
+      const Logger = reggol.default;
+      Logger.levels.base = 0; // SILENT
+    } catch {
+      // Ignore if reggol is not available
+    }
   }
 
   private log(message: string): void {
@@ -63,13 +80,14 @@ export class ChatRouter {
     this.log(`Send failed after ${maxRetries} retries: ${lastError?.message}`);
   }
 
-  async start(): Promise<void> {
-    const config = await readHakimiConfig();
-    if (!config?.adapters || config.adapters.length === 0) {
-      throw new Error('No adapters configured');
-    }
+  async start(): Promise<{ success: boolean; error?: string }> {
+    try {
+      const config = await readHakimiConfig();
+      if (!config?.adapters || config.adapters.length === 0) {
+        return { success: false, error: 'No adapters configured' };
+      }
 
-    this.agentName = config.agentName || 'Hakimi';
+      this.agentName = config.agentName || 'Hakimi';
 
     // Dynamic import koishi to avoid Node.js v24 compatibility issues at load time
     const { Context, HTTP } = await import('koishi');
@@ -101,16 +119,38 @@ export class ChatRouter {
       this.handleMessage(session);
     });
 
-    this.log('Starting Koishi context...');
+      this.log('Starting Koishi context...');
 
-    // Start with retry
-    await this.startWithRetry();
+      // Start with retry (limited retries for initial start)
+      await this.startWithRetry(3);
 
-    this.isRunning = true;
+      this.isRunning = true;
+      return { success: true };
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      this.log(`Failed to start: ${errorMsg}`);
+      // Clean up on failure
+      if (this.ctx) {
+        try {
+          await this.ctx.stop();
+        } catch {
+          // Ignore
+        }
+        this.ctx = null;
+      }
+      return { success: false, error: errorMsg };
+    }
   }
 
-  private async startWithRetry(maxRetries = Infinity): Promise<void> {
+  async restart(): Promise<{ success: boolean; error?: string }> {
+    this.log('Restarting chat router...');
+    await this.stop();
+    return this.start();
+  }
+
+  private async startWithRetry(maxRetries = 3): Promise<void> {
     let retries = 0;
+    let lastError: Error | null = null;
     while (retries < maxRetries) {
       try {
         await this.ctx!.start();
@@ -123,12 +163,15 @@ export class ChatRouter {
         }
         return;
       } catch (error) {
+        lastError = error as Error;
         retries++;
+        if (retries >= maxRetries) break;
         const delay = Math.min(5000 * retries, 30000); // Max 30s delay
-        this.log(`Start failed (${retries}), retrying in ${delay / 1000}s: ${error}`);
+        this.log(`Start failed (${retries}/${maxRetries}), retrying in ${delay / 1000}s: ${error}`);
         await this.sleep(delay);
       }
     }
+    throw lastError || new Error('Failed to start after retries');
   }
 
   private scheduleReconnect(bot: any): void {
@@ -262,6 +305,7 @@ export class ChatRouter {
             await session.sendFn(message);
           },
           onLog: (msg) => this.log(msg),
+          workDir: this.options.workDir,
         });
         await session.agent.start();
       }

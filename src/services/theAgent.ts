@@ -38,6 +38,7 @@ agent:
 export interface TheAgentCallbacks {
   onSend: (message: string) => Promise<void>;
   onLog?: (message: string) => void;
+  workDir?: string;
 }
 
 export class TheAgent {
@@ -46,12 +47,14 @@ export class TheAgent {
   private callbacks: TheAgentCallbacks;
   private sessionId: string;
   private agentName: string;
+  private workDir: string;
   private didSendMessage = false;
 
   constructor(sessionId: string, agentName: string, callbacks: TheAgentCallbacks) {
     this.sessionId = sessionId;
     this.agentName = agentName;
     this.callbacks = callbacks;
+    this.workDir = callbacks.workDir || HOME_DIR;
   }
 
   private log(message: string): void {
@@ -86,7 +89,7 @@ export class TheAgent {
     });
 
     const sessionOptions = {
-      workDir: HOME_DIR,
+      workDir: this.workDir,
       sessionId: kimiSessionId,
       agentFile,
       thinking: false,
