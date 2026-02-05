@@ -1,4 +1,4 @@
-import { createSession, createExternalTool, type Session, type Turn } from '@moonshot-ai/kimi-agent-sdk';
+import { createSession, createExternalTool, type Session, type Turn, type ContentPart } from '@moonshot-ai/kimi-agent-sdk';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { homedir } from 'node:os';
@@ -98,6 +98,15 @@ agent:
       IMPORTANT: Prefer calling SendMessage multiple times with shorter messages rather than one long message. This provides better user experience - users see responses progressively instead of waiting for a wall of text.
       </role>
 `;
+}
+
+export interface MessageContext {
+  userId: string;
+  userName?: string;
+  timestamp: number;
+  text: string;
+  images?: string[];  // URLs or data URIs
+  videos?: string[];  // File paths
 }
 
 export interface TheAgentCallbacks {
@@ -205,7 +214,7 @@ export class TheAgent {
     this.log(`Session created: ${kimiSessionId}`);
   }
 
-  async sendMessage(content: string): Promise<void> {
+  async sendMessage(context: MessageContext | string): Promise<void> {
     if (!this.session) {
       throw new Error('Session not started');
     }
@@ -214,8 +223,11 @@ export class TheAgent {
     this.didSendMessage = false;
 
     try {
+      // Build prompt content
+      const promptContent = this.buildPromptContent(context);
+      
       // Send user message
-      await this.runPrompt(`User message: ${content}`);
+      await this.runPrompt(promptContent);
 
       // If agent didn't use SendMessage, prompt again
       let retries = 0;
@@ -244,7 +256,40 @@ export class TheAgent {
     }
   }
 
-  private async runPrompt(content: string): Promise<void> {
+  private buildPromptContent(context: MessageContext | string): string | ContentPart[] {
+    // For terminal (simple string), just wrap it
+    if (typeof context === 'string') {
+      return `User message: ${context}`;
+    }
+
+    // Build metadata header
+    const time = new Date(context.timestamp).toISOString();
+    const userName = context.userName || context.userId;
+    const header = `[Message from ${userName} (ID: ${context.userId}) at ${time}]`;
+    
+    const parts: ContentPart[] = [];
+    
+    // Add text part with metadata
+    let textContent = header;
+    if (context.text) {
+      textContent += `\n\n${context.text}`;
+    }
+    if (context.videos && context.videos.length > 0) {
+      textContent += `\n\n[Attached videos: ${context.videos.join(', ')}]`;
+    }
+    parts.push({ type: 'text', text: textContent });
+    
+    // Add image parts
+    if (context.images && context.images.length > 0) {
+      for (const imageUrl of context.images) {
+        parts.push({ type: 'image_url', image_url: { url: imageUrl } });
+      }
+    }
+    
+    return parts;
+  }
+
+  private async runPrompt(content: string | ContentPart[]): Promise<void> {
     if (!this.session) return;
 
     const turn = this.session.prompt(content);

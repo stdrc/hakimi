@@ -1,6 +1,6 @@
 import { readHakimiConfig, type BotAccountConfig } from '../utils/config.js';
 import { SessionCache } from './sessionCache.js';
-import { TheAgent } from './theAgent.js';
+import { TheAgent, type MessageContext } from './theAgent.js';
 
 export interface ChatSession {
   sessionId: string;
@@ -10,7 +10,7 @@ export interface ChatSession {
   isProcessing: boolean;
   sendFn: (message: string) => Promise<void>;
   agent: TheAgent | null;
-  pendingMessage: string | null;
+  pendingMessage: MessageContext | null;
 }
 
 export type BotStatus = 'connecting' | 'active' | 'inactive' | 'error';
@@ -318,7 +318,7 @@ export class ChatRouter {
     }
 
     const sessionId = `${koishiSession.platform}-${koishiSession.selfId}-${koishiSession.userId}`;
-    const content = koishiSession.content || '';
+    const messageContext = this.extractMessageContext(koishiSession);
 
     let chatSession = this.sessionCache.get(sessionId);
 
@@ -347,14 +347,55 @@ export class ChatRouter {
       this.options.onSessionStart(chatSession);
     }
 
-    this.options.onMessage(sessionId, content);
-    this.processMessage(chatSession, content);
+    this.options.onMessage(sessionId, messageContext.text);
+    this.processMessage(chatSession, messageContext);
   }
 
-  private async processMessage(session: ChatSession, content: string): Promise<void> {
+  private extractMessageContext(koishiSession: KoishiSession): MessageContext {
+    const images: string[] = [];
+    const videos: string[] = [];
+    
+    // Extract media from elements
+    const elements = (koishiSession as any).elements || [];
+    for (const el of elements) {
+      if (el.type === 'img' || el.type === 'image') {
+        const src = el.attrs?.src || el.attrs?.url;
+        if (src) {
+          images.push(src);
+        }
+      } else if (el.type === 'video') {
+        const src = el.attrs?.src || el.attrs?.url;
+        if (src) {
+          videos.push(src);
+        }
+      } else if (el.type === 'file') {
+        // Treat file as video if it looks like one
+        const src = el.attrs?.src || el.attrs?.url;
+        const type = el.attrs?.type || '';
+        if (src && type.startsWith('video/')) {
+          videos.push(src);
+        }
+      }
+    }
+
+    // Get user info
+    const user = (koishiSession as any).event?.user || (koishiSession as any).author || {};
+    const userName = user.name || user.nick || user.username || user.nickname;
+
+    return {
+      userId: koishiSession.userId || '',
+      userName,
+      timestamp: (koishiSession as any).timestamp || Date.now(),
+      text: koishiSession.content || '',
+      images: images.length > 0 ? images : undefined,
+      videos: videos.length > 0 ? videos : undefined,
+    };
+  }
+
+  private async processMessage(session: ChatSession, context: MessageContext): Promise<void> {
     if (session.isProcessing) {
       this.log(`Interrupting current turn for ${session.sessionId}`);
-      session.pendingMessage = content;
+      session.pendingMessage = context;
       if (session.agent) {
         await session.agent.interrupt();
       }
@@ -376,12 +417,12 @@ export class ChatRouter {
         await session.agent.start();
       }
 
-      await session.agent.sendMessage(content);
+      await session.agent.sendMessage(context);
 
       while (session.pendingMessage) {
         const pending = session.pendingMessage;
         session.pendingMessage = null;
-        this.log(`Processing pending message: ${pending}`);
+        this.log(`Processing pending message: ${pending.text}`);
         await session.agent.sendMessage(pending);
       }
     } catch (error) {
