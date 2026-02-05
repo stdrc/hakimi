@@ -20,6 +20,7 @@ export function App({ debug = false, workDir }: AppProps) {
   const [screen, setScreen] = useState<Screen>('home');
   const [loggedIn, setLoggedIn] = useState(false);
   const [agentName, setAgentName] = useState('Hakimi');
+  const [hasBotAccounts, setHasBotAccounts] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
   const [botStatuses, setBotStatuses] = useState<BotStatusInfo[]>([]);
   const [chatError, setChatError] = useState<string | null>(null);
@@ -80,8 +81,10 @@ export function App({ debug = false, workDir }: AppProps) {
 
     const config = await readHakimiConfig();
     setAgentName(config?.agentName || 'Hakimi');
+    const botAccountsCount = config?.botAccounts?.length ?? 0;
+    setHasBotAccounts(botAccountsCount > 0);
 
-    return { isLogged, botAccountsCount: config?.botAccounts?.length ?? 0 };
+    return { isLogged, botAccountsCount };
   }, []);
 
   // Initial load: check status and auto-start if configured
@@ -123,6 +126,7 @@ export function App({ debug = false, workDir }: AppProps) {
         <HomeScreen
           key={reloadKey}
           isLoggedIn={loggedIn}
+          hasBotAccounts={hasBotAccounts}
           botStatuses={botStatuses}
           chatError={chatError}
           workDir={effectiveWorkDir}

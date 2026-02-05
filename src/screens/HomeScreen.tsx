@@ -8,6 +8,7 @@ import { TheAgent } from '../services/theAgent.js';
 
 interface HomeScreenProps {
   isLoggedIn: boolean;
+  hasBotAccounts: boolean;
   botStatuses: BotStatusInfo[];
   chatError: string | null;
   workDir: string;
@@ -21,6 +22,7 @@ interface HomeScreenProps {
 
 export function HomeScreen({
   isLoggedIn,
+  hasBotAccounts,
   botStatuses,
   chatError,
   workDir,
@@ -55,14 +57,28 @@ export function HomeScreen({
 
     agentRef.current = agent;
 
-    agent.start().catch((err) => {
-      setError(err.message);
-    });
+    agent.start()
+      .then(async () => {
+        // Auto-prompt for config if no bot accounts configured
+        if (!hasBotAccounts) {
+          setIsProcessing(true);
+          try {
+            await agent.sendMessage('Hello! I just started Hakimi and need help setting up. Please guide me through the initial configuration.');
+          } catch (err) {
+            setError(err instanceof Error ? err.message : String(err));
+          } finally {
+            setIsProcessing(false);
+          }
+        }
+      })
+      .catch((err) => {
+        setError(err.message);
+      });
 
     return () => {
       agent.close();
     };
-  }, [isLoggedIn, agentName, workDir, onConfigChange, debug]);
+  }, [isLoggedIn, hasBotAccounts, agentName, workDir, onConfigChange, debug]);
 
   const handleSubmit = useCallback(async (value: string) => {
     if (!value.trim()) return;
