@@ -1,133 +1,265 @@
 # Hakimi
 
-Hakimi is a TUI application combining Kimi Agent SDK, Ink framework, and Koishi chatbot framework to:
+Hakimi is a TUI (Terminal User Interface) application that bridges instant messaging platforms (Telegram/Slack/Feishu) with Kimi Code CLI, enabling users to chat with an AI assistant via messaging apps to remotely control their computer.
 
-1. Login to Kimi account
-2. AI-assisted configuration of Koishi adapters (Telegram/Slack/Feishu)
-3. Route chat platform messages to Kimi CLI
+## Project Overview
+
+- **Package Name**: `hakimi`
+- **Entry Point**: `src/index.tsx` (executable: `dist/index.js`)
+- **Repository**: https://github.com/stdrc/hakimi
+- **License**: MIT
+
+### Core Features
+
+1. **Kimi Login**: OAuth-based login to Kimi Code account via `kimi login --json`
+2. **AI-Guided Configuration**: Interactive wizard to configure chat platform adapters
+3. **Chat Routing**: Routes messages from chat platforms to Kimi Code CLI agent sessions
+4. **Multi-Platform Support**: Telegram, Slack, and Feishu (Lark)
 
 ## Tech Stack
 
-- **Runtime**: Node.js
-- **UI Framework**: Ink (React for CLI)
-- **AI SDK**: @moonshot-ai/kimi-agent-sdk
-- **Chat Framework**: Koishi
-- **Config Format**: TOML
-- **Validation**: Zod
+| Component | Technology |
+|-----------|------------|
+| Runtime | Node.js |
+| Language | TypeScript (ES2022, ESM) |
+| UI Framework | Ink (React for CLI) |
+| AI SDK | @moonshot-ai/kimi-agent-sdk |
+| Chat Framework | Koishi |
+| Config Format | TOML (@iarna/toml) |
+| Validation | Zod |
 
 ## Project Structure
 
 ```
 hakimi/
-├── package.json
-├── tsconfig.json
+├── package.json              # Package config, scripts, dependencies
+├── tsconfig.json             # TypeScript configuration
+├── patches/                  # patch-package patches for dependencies
+│   ├── @koishijs+loader+4.6.10.patch
+│   └── @moonshot-ai+kimi-agent-sdk+0.0.6.patch
+├── prompts/
+│   └── config-agent.md       # System prompt for config wizard AI
 ├── src/
-│   ├── index.tsx                 # Entry point
-│   ├── App.tsx                   # Main app with screen routing
-│   ├── components/
-│   │   ├── StatusBar.tsx         # Login/adapter status
-│   │   ├── HotkeyHint.tsx        # Hotkey hints
-│   │   └── MessageLog.tsx        # Chat message display
-│   ├── screens/
-│   │   ├── HomeScreen.tsx        # Main menu (L, C, S, Q)
-│   │   ├── LoginScreen.tsx       # OAuth login flow
-│   │   └── ConfigScreen.tsx      # Config wizard
-│   ├── services/
-│   │   ├── loginService.ts       # kimi login --json parsing
-│   │   ├── configAgent.ts        # Config agent with tools
-│   │   ├── chatRouter.ts         # Koishi message routing
-│   │   └── sessionCache.ts       # 5-min TTL session cache
-│   ├── tools/
-│   │   ├── askUser.ts            # AskUser tool
-│   │   ├── finishConfig.ts       # FinishConfig tool
-│   │   └── sendMessage.ts        # SendMessage tool
+│   ├── index.tsx             # Entry point with error handlers
+│   ├── App.tsx               # Main app, screen routing, ChatRouter
+│   ├── components/           # Reusable UI components
+│   │   ├── StatusBar.tsx     # Login/adapter/chat status display
+│   │   ├── HotkeyHint.tsx    # Hotkey hints bar
+│   │   └── MessageLog.tsx    # Chat message list display
+│   ├── screens/              # Screen components (pages)
+│   │   ├── HomeScreen.tsx    # Main menu (L, C, S, Q hotkeys)
+│   │   ├── LoginScreen.tsx   # OAuth login flow UI
+│   │   └── ConfigScreen.tsx  # Config wizard chat UI
+│   ├── services/             # Business logic
+│   │   ├── loginService.ts   # Spawns `kimi login --json`, parses events
+│   │   ├── configAgent.ts    # ConfigAgent class for config wizard
+│   │   ├── theAgent.ts       # TheAgent class for chat sessions
+│   │   ├── chatRouter.ts     # ChatRouter: Koishi setup, message handling
+│   │   └── sessionCache.ts   # Generic TTL cache for chat sessions
+│   ├── tools/                # Agent tool definitions (Zod schemas)
+│   │   ├── askUser.ts        # AskUser tool schema
+│   │   ├── finishConfig.ts   # FinishConfig tool schema
+│   │   └── sendMessage.ts    # SendMessage tool schema
 │   └── utils/
-│       ├── paths.ts              # Path constants
-│       └── config.ts             # TOML read/write
-└── prompts/
-    └── config-agent.md           # Config wizard prompt
+│       ├── paths.ts          # Path constants, language detection
+│       └── config.ts         # TOML config read/write helpers
+└── dist/                     # TypeScript build output
 ```
 
-## Config File Locations
-
-- Kimi config: `~/.kimi/config.toml` (check `default_model` field for login status)
-- Hakimi config: `~/.hakimi/config.toml`
-
-## Development Commands
+## Build & Development Commands
 
 ```bash
-# Install dependencies
+# Install dependencies (runs postinstall to apply patches)
 npm install
 
-# Development mode
+# Development mode with hot reload (tsx)
 npm run dev
 
-# Build
+# Build TypeScript to dist/
 npm run build
 
-# Run built output
+# Run the built application
 npm start
+
+# Run with debug logging
+npm start -- --debug
+# or in dev mode
+npm run dev -- --debug
 ```
 
-## Screens & Hotkeys
+## Code Style Guidelines
 
-### HomeScreen
-- `L` - Login to Kimi
-- `C` - Configure adapters (requires login)
-- `S` - Start/Stop chat routing (requires adapters)
-- `Q` - Quit
+- **TypeScript**: Strict mode enabled, ES2022 target
+- **Module System**: ES Modules (`"type": "module"` in package.json)
+- **JSX**: React JSX transform (`"jsx": "react-jsx"`)
+- **Imports**: Use `.js` extension for local imports (TypeScript ESM requirement)
+- **Types**: Prefer interfaces over type aliases; export types explicitly
+- **Naming**: PascalCase for components/classes, camelCase for functions/variables
+- **File Extensions**: `.tsx` for React components, `.ts` for pure TypeScript
 
-### LoginScreen
-- Displays verification URL and user code
-- `Esc` - Cancel
+### Code Patterns
 
-### ConfigScreen
-- Chat with AI to configure adapters
-- `Esc` - Cancel/Done
+```typescript
+// Component with props interface
+interface MyComponentProps {
+  value: string;
+  onChange: (value: string) => void;
+}
 
-## Supported Adapters
+export function MyComponent({ value, onChange }: MyComponentProps) {
+  // ...
+}
 
-### Telegram
+// Service class with callbacks
+interface ServiceCallbacks {
+  onEvent: (data: EventData) => void;
+  onError: (error: Error) => void;
+}
+
+export class MyService {
+  constructor(callbacks: ServiceCallbacks) {
+    // ...
+  }
+}
+
+// Tool definition with Zod schema
+export const myToolSchema = z.object({
+  param: z.string().describe('Parameter description'),
+});
+```
+
+## Configuration Files
+
+### Kimi Config (`~/.kimi/config.toml`)
+
+Managed by Kimi Code CLI. Login status is checked via `default_model` field existence.
+
+### Hakimi Config (`~/.hakimi/config.toml`)
+
 ```toml
+agentName = "MyAssistant"
+
 [[adapters]]
 type = "telegram"
 [adapters.config]
-protocol = "polling"  # or "server" for webhook
-token = "BOT_TOKEN"   # From @BotFather
-```
+protocol = "polling"
+token = "BOT_TOKEN"
 
-### Slack
-```toml
 [[adapters]]
 type = "slack"
 [adapters.config]
-token = "xapp-..."      # App-level token
-botToken = "xoxb-..."   # Bot user OAuth token
-signing = "..."         # Optional, Signing secret
-```
+protocol = "ws"
+token = "xapp-..."
+botToken = "xoxb-..."
 
-### Feishu (Lark)
-```toml
 [[adapters]]
 type = "feishu"
 [adapters.config]
+protocol = "ws"
 appId = "..."
 appSecret = "..."
 ```
 
-## Agent Tools
+## Key Architectural Concepts
 
-### AskUser
-Ask user for input (text).
+### Screen Routing
 
-### FinishConfig
-Save adapter configuration to `~/.hakimi/config.toml`.
+The app uses a simple state-based screen routing in `App.tsx`:
+- `home`: Main menu with status and hotkeys
+- `login`: OAuth login flow
+- `config`: AI-guided configuration wizard
 
-### SendMessage
-Send message to chat user. Agent MUST use this tool to reply, not put replies in assistant message content.
+### ChatRouter
 
-## Session Management
+`ChatRouter` in `src/services/chatRouter.ts` is the core message routing service:
+1. Loads adapter configurations from Hakimi config
+2. Initializes Koishi context with appropriate bot adapters
+3. Listens for incoming messages
+4. Creates/retrieves `TheAgent` instances for each chat session
+5. Handles message queuing when agent is processing
 
-- Session ID format: `{platform}-{botId}-{userId}`
-- Sessions cached for 5 minutes, auto-cleanup on timeout
-- New message while processing: interrupt current turn and restart
+### Session Management
+
+- **Session ID Format**: `{platform}-{botId}-{userId}`
+- **TTL**: 5 minutes of inactivity
+- **Behavior**: Sessions are cached and reused; new messages during processing are queued
+
+### Agent Architecture
+
+Two agent types are used:
+
+1. **ConfigAgent** (`configAgent.ts`): Guides users through adapter configuration
+   - Tools: `AskUser`, `FinishConfig`
+   - Prompt: `prompts/config-agent.md`
+
+2. **TheAgent** (`theAgent.ts`): Handles chat messages from platforms
+   - Tools: `SendMessage`
+   - Uses dynamic YAML agent file for customization
+   - Agent MUST use `SendMessage` tool to reply (assistant content is ignored)
+
+### Patches
+
+The project patches two dependencies via `patch-package`:
+
+1. **@koishijs/loader**: Fixes ESM default export issue
+2. **@moonshot-ai/kimi-agent-sdk**: Adds `agentFile` option to customize agent behavior
+
+## Hotkeys
+
+| Screen | Key | Action |
+|--------|-----|--------|
+| Home | `L` | Login to Kimi |
+| Home | `C` | Configure adapters (requires login) |
+| Home | `S` | Start/Stop chat service (requires adapters) |
+| Home | `Q` | Quit |
+| Login/Config | `Esc` | Cancel/Back |
+
+## Testing
+
+No automated tests are currently implemented. Manual testing workflow:
+
+1. Run `npm run dev` to start in development mode
+2. Press `L` to test login flow
+3. Press `C` to test configuration wizard
+4. Press `S` to start chat service
+5. Send messages via configured chat platform
+
+## Security Considerations
+
+- Bot tokens and secrets are stored in plain text in `~/.hakimi/config.toml`
+- The application has access to user's home directory via Kimi Code CLI
+- Only private messages are processed; group messages are ignored
+- No authentication layer between chat platform and Kimi CLI
+
+## Debugging
+
+Run with `--debug` flag to see detailed logs:
+
+```bash
+npm start -- --debug
+```
+
+Debug mode shows:
+- Koishi bot status updates
+- Message routing events
+- Agent creation and message processing
+- Send/receive logs
+
+## Dependencies Overview
+
+### Production Dependencies
+
+- `ink`, `ink-spinner`, `ink-text-input`: TUI framework
+- `react`: UI component library
+- `koishi`: Chat bot framework
+- `@koishijs/plugin-adapter-*`: Platform adapters
+- `@moonshot-ai/kimi-agent-sdk`: Kimi AI agent SDK
+- `@iarna/toml`: TOML parser/serializer
+- `zod`: Schema validation
+
+### Dev Dependencies
+
+- `typescript`: TypeScript compiler
+- `tsx`: TypeScript execution (dev mode)
+- `patch-package`: Dependency patching
+- `@types/*`: Type definitions
