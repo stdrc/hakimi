@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { z } from 'zod';
 import { getLanguageInstruction } from '../utils/paths.js';
 
-const HOME_DIR = homedir();
+const DEFAULT_WORK_DIR = join(homedir(), '.hakimi', 'workspace');
 const AGENT_YAML_DIR = '/tmp/hakimi/agents';
 
 function generateAgentYaml(agentName: string): string {
@@ -54,7 +54,7 @@ export class TheAgent {
     this.sessionId = sessionId;
     this.agentName = agentName;
     this.callbacks = callbacks;
-    this.workDir = callbacks.workDir || HOME_DIR;
+    this.workDir = callbacks.workDir || DEFAULT_WORK_DIR;
   }
 
   private log(message: string): void {
@@ -64,6 +64,11 @@ export class TheAgent {
   async start(): Promise<void> {
     const kimiSessionId = `hakimi-${this.sessionId}`;
     this.log(`Starting session: ${kimiSessionId}`);
+
+    // Ensure work directory exists
+    if (!existsSync(this.workDir)) {
+      await mkdir(this.workDir, { recursive: true });
+    }
 
     // Ensure agent YAML directory exists
     if (!existsSync(AGENT_YAML_DIR)) {

@@ -57,7 +57,7 @@ export function HomeScreen({
     <Box flexDirection="column" padding={1}>
       <Box marginBottom={1}>
         <Text bold color="magenta">
-          Hakimi - Kimi Chat Router
+          Hakimi - Your AI Companion That Grows With You
         </Text>
       </Box>
 

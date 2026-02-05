@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Box, Text, useApp } from 'ink';
 import { homedir } from 'node:os';
+import { join } from 'node:path';
 import { HomeScreen } from './screens/HomeScreen.js';
 import { LoginScreen } from './screens/LoginScreen.js';
 import { ConfigScreen } from './screens/ConfigScreen.js';
@@ -16,7 +17,7 @@ interface AppProps {
 
 export function App({ debug = false, workDir }: AppProps) {
   const { exit } = useApp();
-  const effectiveWorkDir = workDir || homedir();
+  const effectiveWorkDir = workDir || join(homedir(), '.hakimi', 'workspace');
   const [screen, setScreen] = useState<Screen>('home');
   const [loggedIn, setLoggedIn] = useState(false);
   const [botAccountsConfigured, setBotAccountsConfigured] = useState(0);
