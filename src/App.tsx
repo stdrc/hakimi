@@ -5,7 +5,7 @@ import { HomeScreen } from './screens/HomeScreen.js';
 import { LoginScreen } from './screens/LoginScreen.js';
 import { ConfigScreen } from './screens/ConfigScreen.js';
 import { isLoggedIn as checkLoggedIn, readHakimiConfig } from './utils/config.js';
-import { ChatRouter, type ChatSession } from './services/chatRouter.js';
+import { ChatRouter, type ChatSession, type BotStatusInfo } from './services/chatRouter.js';
 
 type Screen = 'home' | 'login' | 'config';
 
@@ -19,8 +19,8 @@ export function App({ debug = false, workDir }: AppProps) {
   const effectiveWorkDir = workDir || homedir();
   const [screen, setScreen] = useState<Screen>('home');
   const [loggedIn, setLoggedIn] = useState(false);
-  const [adaptersConfigured, setAdaptersConfigured] = useState(0);
-  const [chatActive, setChatActive] = useState(false);
+  const [botAccountsConfigured, setBotAccountsConfigured] = useState(0);
+  const [botStatuses, setBotStatuses] = useState<BotStatusInfo[]>([]);
   const [chatError, setChatError] = useState<string | null>(null);
   const [logs, setLogs] = useState<string[]>([]);
   const [lastMessage, setLastMessage] = useState<{ sessionId: string; content: string } | null>(null);
@@ -46,6 +46,9 @@ export function App({ debug = false, workDir }: AppProps) {
         onSessionEnd: (sessionId) => {
           if (debug) addLog(`Session ended: ${sessionId}`);
         },
+        onBotStatusChange: (bots) => {
+          setBotStatuses(bots);
+        },
         onLog: (message) => {
           if (debug) addLog(message);
         },
@@ -57,28 +60,21 @@ export function App({ debug = false, workDir }: AppProps) {
   const startChat = useCallback(async () => {
     setChatError(null);
     const result = await chatRouter.start();
-    if (result.success) {
-      setChatActive(true);
-    } else {
+    if (!result.success) {
       setChatError(result.error || 'Unknown error');
-      setChatActive(false);
     }
   }, [chatRouter]);
 
   const restartChat = useCallback(async () => {
     setChatError(null);
     const result = await chatRouter.restart();
-    if (result.success) {
-      setChatActive(true);
-    } else {
+    if (!result.success) {
       setChatError(result.error || 'Unknown error');
-      setChatActive(false);
     }
   }, [chatRouter]);
 
   const stopChat = useCallback(async () => {
     await chatRouter.stop();
-    setChatActive(false);
     setChatError(null);
   }, [chatRouter]);
 
@@ -87,9 +83,9 @@ export function App({ debug = false, workDir }: AppProps) {
     setLoggedIn(isLogged);
 
     const config = await readHakimiConfig();
-    setAdaptersConfigured(config?.adapters?.length ?? 0);
+    setBotAccountsConfigured(config?.botAccounts?.length ?? 0);
 
-    return { isLogged, adaptersCount: config?.adapters?.length ?? 0 };
+    return { isLogged, botAccountsCount: config?.botAccounts?.length ?? 0 };
   }, []);
 
   // Initial load: check status and auto-start if configured
@@ -98,8 +94,8 @@ export function App({ debug = false, workDir }: AppProps) {
     initializedRef.current = true;
 
     (async () => {
-      const { adaptersCount } = await refreshStatus();
-      if (adaptersCount > 0) {
+      const { botAccountsCount } = await refreshStatus();
+      if (botAccountsCount > 0) {
         await startChat();
       }
     })();
@@ -113,19 +109,19 @@ export function App({ debug = false, workDir }: AppProps) {
 
   const handleConfigFinished = useCallback(async () => {
     setScreen('home');
-    const { adaptersCount } = await refreshStatus();
-    if (adaptersCount > 0) {
+    const { botAccountsCount } = await refreshStatus();
+    if (botAccountsCount > 0) {
       await restartChat();
     }
   }, [refreshStatus, restartChat]);
 
   const handleToggleChat = useCallback(async () => {
-    if (chatActive) {
+    if (chatRouter.running) {
       await stopChat();
     } else {
       await startChat();
     }
-  }, [chatActive, startChat, stopChat]);
+  }, [chatRouter.running, startChat, stopChat]);
 
   const handleQuit = useCallback(async () => {
     if (chatRouter.running) {
@@ -139,9 +135,10 @@ export function App({ debug = false, workDir }: AppProps) {
       {screen === 'home' && (
         <HomeScreen
           isLoggedIn={loggedIn}
-          adaptersConfigured={adaptersConfigured}
-          chatActive={chatActive}
+          botAccountsConfigured={botAccountsConfigured}
+          botStatuses={botStatuses}
           chatError={chatError}
+          chatRunning={chatRouter.running}
           workDir={effectiveWorkDir}
           onLogin={() => setScreen('login')}
           onConfig={() => setScreen('config')}
@@ -167,7 +164,7 @@ export function App({ debug = false, workDir }: AppProps) {
         />
       )}
 
-      {chatActive && debug && logs.length > 0 && (
+      {chatRouter.running && debug && logs.length > 0 && (
         <Box flexDirection="column" marginTop={1} paddingX={1}>
           <Text color="gray">─── Debug Logs ───</Text>
           {logs.map((log, i) => (
@@ -178,7 +175,7 @@ export function App({ debug = false, workDir }: AppProps) {
         </Box>
       )}
 
-      {chatActive && lastMessage && (
+      {chatRouter.running && lastMessage && (
         <Box marginTop={1} paddingX={1}>
           <Text color="gray">上次收到: </Text>
           <Text color="cyan">[{lastMessage.sessionId}] </Text>

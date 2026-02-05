@@ -1,4 +1,4 @@
-import { readHakimiConfig, type AdapterConfig } from '../utils/config.js';
+import { readHakimiConfig, type BotAccountConfig } from '../utils/config.js';
 import { SessionCache } from './sessionCache.js';
 import { TheAgent } from './theAgent.js';
 
@@ -13,10 +13,22 @@ export interface ChatSession {
   pendingMessage: string | null;
 }
 
+export type BotStatus = 'connecting' | 'active' | 'inactive' | 'error';
+
+export interface BotStatusInfo {
+  type: string;
+  platform: string;
+  selfId?: string;
+  name?: string;
+  status: BotStatus;
+  error?: string;
+}
+
 export interface ChatRouterOptions {
   onMessage: (sessionId: string, content: string) => void;
   onSessionStart: (session: ChatSession) => void;
   onSessionEnd: (sessionId: string) => void;
+  onBotStatusChange?: (bots: BotStatusInfo[]) => void;
   onLog?: (message: string) => void;
   debug?: boolean;
   workDir?: string;
@@ -33,6 +45,8 @@ export class ChatRouter {
   private isRunning = false;
   private agentName = 'Hakimi';
   private retryTimeouts: Map<string, NodeJS.Timeout> = new Map();
+  private botConfigs: BotAccountConfig[] = [];
+  private botStatuses: Map<string, BotStatusInfo> = new Map();
 
   constructor(options: ChatRouterOptions) {
     this.options = options;
@@ -72,7 +86,7 @@ export class ChatRouter {
         return;
       } catch (error) {
         lastError = error as Error;
-        const delay = Math.min(3000 * (i + 1), 30000); // 3s, 6s, 9s, ... up to 30s
+        const delay = Math.min(3000 * (i + 1), 30000);
         this.log(`Send failed (${i + 1}/${maxRetries}), retry in ${delay / 1000}s...`);
         await this.sleep(delay);
       }
@@ -80,56 +94,76 @@ export class ChatRouter {
     this.log(`Send failed after ${maxRetries} retries: ${lastError?.message}`);
   }
 
+  private updateBotStatus(key: string, info: BotStatusInfo): void {
+    this.botStatuses.set(key, info);
+    this.notifyBotStatusChange();
+  }
+
+  private notifyBotStatusChange(): void {
+    const bots = Array.from(this.botStatuses.values());
+    this.options.onBotStatusChange?.(bots);
+  }
+
   async start(): Promise<{ success: boolean; error?: string }> {
     try {
       const config = await readHakimiConfig();
-      if (!config?.adapters || config.adapters.length === 0) {
-        return { success: false, error: 'No adapters configured' };
+      if (!config?.botAccounts || config.botAccounts.length === 0) {
+        return { success: false, error: 'No bot accounts configured' };
       }
 
       this.agentName = config.agentName || 'Hakimi';
+      this.botConfigs = config.botAccounts;
+      this.botStatuses.clear();
 
-    // Dynamic import koishi to avoid Node.js v24 compatibility issues at load time
-    const { Context, HTTP } = await import('koishi');
-    this.ctx = new Context();
-
-    // Register HTTP service (required by bot adapters)
-    this.ctx.plugin(HTTP);
-
-    for (const adapter of config.adapters) {
-      await this.loadAdapter(adapter);
-    }
-
-    // Listen for bot status updates
-    this.ctx.on('bot-status-updated', (bot) => {
-      this.log(`Bot ${bot.selfId || 'unknown'} status: ${bot.status}`);
-      // Status 3 = offline, try to reconnect
-      if (bot.status === 3) {
-        this.scheduleReconnect(bot);
+      // Initialize bot statuses as connecting
+      for (let i = 0; i < this.botConfigs.length; i++) {
+        const botConfig = this.botConfigs[i];
+        const key = `${botConfig.type}-${i}`;
+        this.updateBotStatus(key, {
+          type: botConfig.type,
+          platform: botConfig.type === 'feishu' ? 'lark' : botConfig.type,
+          status: 'connecting',
+        });
       }
-    });
 
-    // Listen for errors - don't crash, just log
-    this.ctx.on('internal/error', (error) => {
-      this.log(`Error: ${error.message || error}`);
-    });
+      // Dynamic import koishi
+      const { Context, HTTP } = await import('koishi');
+      this.ctx = new Context();
+      this.ctx.plugin(HTTP);
 
-    this.ctx.on('message', (session: KoishiSession) => {
-      this.log(`Message from ${session.userId}: ${session.content}`);
-      this.handleMessage(session);
-    });
+      for (const botConfig of this.botConfigs) {
+        await this.loadBotAccount(botConfig);
+      }
+
+      // Listen for bot status updates
+      this.ctx.on('bot-status-updated', (bot) => {
+        this.log(`Bot ${bot.platform}/${bot.selfId || 'unknown'} status: ${bot.status}`);
+        this.handleKoishiBotStatus(bot);
+      });
+
+      // Listen for errors
+      this.ctx.on('internal/error', (error) => {
+        this.log(`Error: ${error.message || error}`);
+      });
+
+      this.ctx.on('message', (session: KoishiSession) => {
+        this.log(`Message from ${session.userId}: ${session.content}`);
+        this.handleMessage(session);
+      });
 
       this.log('Starting Koishi context...');
-
-      // Start with retry (limited retries for initial start)
       await this.startWithRetry(3);
-
       this.isRunning = true;
       return { success: true };
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error);
       this.log(`Failed to start: ${errorMsg}`);
-      // Clean up on failure
+      
+      // Mark all bots as error
+      for (const [key, info] of this.botStatuses) {
+        this.updateBotStatus(key, { ...info, status: 'error', error: errorMsg });
+      }
+      
       if (this.ctx) {
         try {
           await this.ctx.stop();
@@ -140,6 +174,54 @@ export class ChatRouter {
       }
       return { success: false, error: errorMsg };
     }
+  }
+
+  private handleKoishiBotStatus(bot: any): void {
+    // Find matching bot config
+    const key = this.findBotKey(bot.platform, bot.selfId);
+    if (!key) return;
+
+    const existing = this.botStatuses.get(key);
+    if (!existing) return;
+
+    // Koishi bot status: 0=offline, 1=online, 2=connect, 3=disconnect, 4=reconnect
+    let status: BotStatus;
+    switch (bot.status) {
+      case 1: // online
+        status = 'active';
+        break;
+      case 0: // offline
+      case 3: // disconnect
+        status = 'inactive';
+        this.scheduleReconnect(bot);
+        break;
+      case 2: // connect
+      case 4: // reconnect
+        status = 'connecting';
+        break;
+      default:
+        status = 'inactive';
+    }
+
+    // Get bot name from user object
+    const name = bot.user?.name || bot.user?.nick;
+
+    this.updateBotStatus(key, {
+      ...existing,
+      selfId: bot.selfId,
+      name,
+      status,
+    });
+  }
+
+  private findBotKey(platform: string, selfId?: string): string | null {
+    // Try to find by platform and selfId
+    for (const [key, info] of this.botStatuses) {
+      if (info.platform === platform && (info.selfId === selfId || !info.selfId)) {
+        return key;
+      }
+    }
+    return null;
   }
 
   async restart(): Promise<{ success: boolean; error?: string }> {
@@ -155,7 +237,6 @@ export class ChatRouter {
       try {
         await this.ctx!.start();
 
-        // Log created bots
         const bots = this.ctx!.bots || [];
         this.log(`Koishi started with ${bots.length} bot(s)`);
         for (const bot of bots) {
@@ -166,7 +247,7 @@ export class ChatRouter {
         lastError = error as Error;
         retries++;
         if (retries >= maxRetries) break;
-        const delay = Math.min(5000 * retries, 30000); // Max 30s delay
+        const delay = Math.min(5000 * retries, 30000);
         this.log(`Start failed (${retries}/${maxRetries}), retrying in ${delay / 1000}s: ${error}`);
         await this.sleep(delay);
       }
@@ -177,13 +258,11 @@ export class ChatRouter {
   private scheduleReconnect(bot: any): void {
     const botKey = `${bot.platform}-${bot.selfId}`;
 
-    // Clear existing retry timeout
     const existing = this.retryTimeouts.get(botKey);
     if (existing) {
       clearTimeout(existing);
     }
 
-    // Schedule reconnect
     const timeout = setTimeout(async () => {
       this.retryTimeouts.delete(botKey);
       this.log(`Attempting to reconnect bot ${botKey}...`);
@@ -192,7 +271,6 @@ export class ChatRouter {
         this.log(`Bot ${botKey} reconnected`);
       } catch (error) {
         this.log(`Reconnect failed for ${botKey}: ${error}`);
-        // Schedule another retry
         this.scheduleReconnect(bot);
       }
     }, 5000);
@@ -200,31 +278,28 @@ export class ChatRouter {
     this.retryTimeouts.set(botKey, timeout);
   }
 
-  private async loadAdapter(adapter: AdapterConfig): Promise<void> {
+  private async loadBotAccount(botConfig: BotAccountConfig): Promise<void> {
     if (!this.ctx) return;
 
-    this.log(`Loading ${adapter.type} adapter...`);
+    this.log(`Loading ${botConfig.type} bot...`);
 
-    switch (adapter.type) {
+    switch (botConfig.type) {
       case 'telegram': {
         const mod = await import('@koishijs/plugin-adapter-telegram');
         const TelegramBot = (mod as any).TelegramBot || mod.default;
-        this.ctx.plugin(TelegramBot, adapter.config);
-        this.log(`Telegram adapter loaded`);
+        this.ctx.plugin(TelegramBot, botConfig.config);
         break;
       }
       case 'slack': {
         const mod = await import('@koishijs/plugin-adapter-slack');
         const SlackBot = (mod as any).SlackBot || mod.default;
-        this.ctx.plugin(SlackBot, adapter.config);
-        this.log(`Slack adapter loaded`);
+        this.ctx.plugin(SlackBot, botConfig.config);
         break;
       }
       case 'feishu': {
         const mod = await import('@koishijs/plugin-adapter-lark');
         const LarkBot = (mod as any).LarkBot || mod.default;
-        this.ctx.plugin(LarkBot, adapter.config);
-        this.log(`Feishu adapter loaded`);
+        this.ctx.plugin(LarkBot, botConfig.config);
         break;
       }
     }
@@ -233,10 +308,6 @@ export class ChatRouter {
   private handleMessage(koishiSession: KoishiSession): void {
     this.log(`Received: platform=${koishiSession.platform}, guildId=${koishiSession.guildId}, channelId=${koishiSession.channelId}, userId=${koishiSession.userId}`);
 
-    // Only handle private messages
-    // - No guildId (most platforms)
-    // - Slack: DM channels start with 'D'
-    // - Lark/Feishu: private chats have guildId === channelId (both start with 'oc_')
     const isPrivate = !koishiSession.guildId ||
       (koishiSession.platform === 'slack' && koishiSession.channelId?.startsWith('D')) ||
       (koishiSession.platform === 'lark' && koishiSession.guildId === koishiSession.channelId);
@@ -260,7 +331,6 @@ export class ChatRouter {
         botId: koishiSession.selfId || '',
         isProcessing: false,
         sendFn: async (message: string) => {
-          // Escape special characters for Slack
           let escapedMessage = message;
           if (platform === 'slack') {
             escapedMessage = message
@@ -278,13 +348,10 @@ export class ChatRouter {
     }
 
     this.options.onMessage(sessionId, content);
-
-    // Process message with agent
     this.processMessage(chatSession, content);
   }
 
   private async processMessage(session: ChatSession, content: string): Promise<void> {
-    // If already processing, interrupt and queue the new message
     if (session.isProcessing) {
       this.log(`Interrupting current turn for ${session.sessionId}`);
       session.pendingMessage = content;
@@ -297,7 +364,6 @@ export class ChatRouter {
     session.isProcessing = true;
 
     try {
-      // Create agent if not exists
       if (!session.agent) {
         this.log(`Creating agent for ${session.sessionId}`);
         session.agent = new TheAgent(session.sessionId, this.agentName, {
@@ -310,10 +376,8 @@ export class ChatRouter {
         await session.agent.start();
       }
 
-      // Process the message
       await session.agent.sendMessage(content);
 
-      // Check for pending messages (new message came in while processing)
       while (session.pendingMessage) {
         const pending = session.pendingMessage;
         session.pendingMessage = null;
@@ -331,20 +395,29 @@ export class ChatRouter {
     return this.sessionCache.get(sessionId);
   }
 
+  getBotStatuses(): BotStatusInfo[] {
+    return Array.from(this.botStatuses.values());
+  }
+
   async stop(): Promise<void> {
-    // Clear all retry timeouts
     for (const timeout of this.retryTimeouts.values()) {
       clearTimeout(timeout);
     }
     this.retryTimeouts.clear();
 
-    // Close all agents
     for (const session of this.sessionCache.values()) {
       if (session.agent) {
         await session.agent.close();
       }
     }
     this.sessionCache.clear();
+    
+    // Mark all bots as inactive
+    for (const [key, info] of this.botStatuses) {
+      this.botStatuses.set(key, { ...info, status: 'inactive' });
+    }
+    this.notifyBotStatusChange();
+    
     if (this.ctx) {
       try {
         await this.ctx.stop();

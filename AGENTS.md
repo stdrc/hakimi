@@ -12,7 +12,7 @@ Hakimi is a TUI (Terminal User Interface) application that bridges instant messa
 ### Core Features
 
 1. **Kimi Login**: OAuth-based login to Kimi Code account via `kimi login --json`
-2. **AI-Guided Configuration**: Interactive wizard to configure chat platform adapters
+2. **AI-Guided Configuration**: Interactive wizard to configure bot accounts
 3. **Chat Routing**: Routes messages from chat platforms to Kimi Code CLI agent sessions
 4. **Multi-Platform Support**: Telegram, Slack, and Feishu (Lark)
 
@@ -43,7 +43,7 @@ hakimi/
 │   ├── index.tsx             # Entry point with error handlers
 │   ├── App.tsx               # Main app, screen routing, ChatRouter
 │   ├── components/           # Reusable UI components
-│   │   ├── StatusBar.tsx     # Login/adapter/chat status display
+│   │   ├── StatusBar.tsx     # Login/bot status display
 │   │   └── HotkeyHint.tsx    # Hotkey hints bar
 │   ├── screens/              # Screen components (pages)
 │   │   ├── HomeScreen.tsx    # Main menu (L, C, S, Q hotkeys)
@@ -142,22 +142,22 @@ Managed by Kimi Code CLI. Login status is checked via `default_model` field exis
 ```toml
 agentName = "MyAssistant"
 
-[[adapters]]
+[[botAccounts]]
 type = "telegram"
-[adapters.config]
+[botAccounts.config]
 protocol = "polling"
 token = "BOT_TOKEN"
 
-[[adapters]]
+[[botAccounts]]
 type = "slack"
-[adapters.config]
+[botAccounts.config]
 protocol = "ws"
 token = "xapp-..."
 botToken = "xoxb-..."
 
-[[adapters]]
+[[botAccounts]]
 type = "feishu"
-[adapters.config]
+[botAccounts.config]
 protocol = "ws"
 appId = "..."
 appSecret = "..."
@@ -175,14 +175,14 @@ The app uses a simple state-based screen routing in `App.tsx`:
 ### ChatRouter
 
 `ChatRouter` in `src/services/chatRouter.ts` is the core message routing service:
-1. Loads adapter configurations from Hakimi config
-2. Initializes Koishi context with appropriate bot adapters
+1. Loads bot account configurations from Hakimi config
+2. Initializes Koishi context with bot adapters
 3. Listens for incoming messages
 4. Creates/retrieves `TheAgent` instances for each chat session
 5. Handles message queuing when agent is processing
 
 **Auto-start behavior:**
-- On startup, if adapters are configured, chat service starts automatically
+- On startup, if bot accounts are configured, chat service starts automatically
 - After configuration changes (via `C`), chat service automatically restarts with new config
 - Errors during startup are caught and displayed in the status bar (won't crash the app)
 
@@ -196,7 +196,7 @@ The app uses a simple state-based screen routing in `App.tsx`:
 
 Two agent types are used:
 
-1. **ConfigAgent** (`configAgent.ts`): Guides users through adapter configuration
+1. **ConfigAgent** (`configAgent.ts`): Guides users through bot account configuration
    - Tools: `AskUser`, `ReadConfig`, `WriteConfig`
    - The agent reads/writes config directly; user can exit anytime with Esc
    - Prompt: `prompts/config-agent.md`
@@ -218,7 +218,7 @@ The project patches two dependencies via `patch-package`:
 | Screen | Key | Action |
 |--------|-----|--------|
 | Home | `L` | Login to Kimi |
-| Home | `C` | Configure adapters (requires login) |
+| Home | `C` | Configure bot accounts (requires login) |
 | Home | `S` | Start/Stop chat service (auto-starts if configured) |
 | Home | `Q` | Quit |
 | Login/Config | `Esc` | Cancel/Back |
@@ -273,7 +273,7 @@ Debug mode shows:
 - `ink`, `ink-spinner`, `ink-text-input`: TUI framework
 - `react`: UI component library
 - `koishi`: Chat bot framework
-- `@koishijs/plugin-adapter-*`: Platform adapters
+- `@koishijs/plugin-adapter-*`: Platform bot adapters
 - `@moonshot-ai/kimi-agent-sdk`: Kimi AI agent SDK
 - `@iarna/toml`: TOML parser/serializer
 - `meow`: CLI argument parsing

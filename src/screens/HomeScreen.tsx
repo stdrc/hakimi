@@ -2,12 +2,14 @@ import React from 'react';
 import { Box, Text, useInput } from 'ink';
 import { StatusBar } from '../components/StatusBar.js';
 import { HotkeyHint } from '../components/HotkeyHint.js';
+import type { BotStatusInfo } from '../services/chatRouter.js';
 
 interface HomeScreenProps {
   isLoggedIn: boolean;
-  adaptersConfigured: number;
-  chatActive: boolean;
+  botAccountsConfigured: number;
+  botStatuses: BotStatusInfo[];
   chatError: string | null;
+  chatRunning: boolean;
   workDir: string;
   onLogin: () => void;
   onConfig: () => void;
@@ -18,9 +20,10 @@ interface HomeScreenProps {
 
 export function HomeScreen({
   isLoggedIn,
-  adaptersConfigured,
-  chatActive,
+  botAccountsConfigured,
+  botStatuses,
   chatError,
+  chatRunning,
   workDir,
   onLogin,
   onConfig,
@@ -34,7 +37,7 @@ export function HomeScreen({
         onLogin();
       } else if ((input === 'c' || input === 'C') && isLoggedIn) {
         onConfig();
-      } else if ((input === 's' || input === 'S') && isLoggedIn && adaptersConfigured > 0) {
+      } else if ((input === 's' || input === 'S') && isLoggedIn && botAccountsConfigured > 0) {
         onChat();
       } else if (input === 'q' || input === 'Q') {
         onQuit();
@@ -46,7 +49,7 @@ export function HomeScreen({
   const hints = [
     { key: 'L', label: 'Login', disabled: isLoggedIn },
     { key: 'C', label: 'Configure', disabled: !isLoggedIn },
-    { key: 'S', label: chatActive ? 'Stop Chat' : 'Start Chat', disabled: !isLoggedIn || adaptersConfigured === 0 },
+    { key: 'S', label: chatRunning ? 'Stop' : 'Start', disabled: !isLoggedIn || botAccountsConfigured === 0 },
     { key: 'Q', label: 'Quit' },
   ];
 
@@ -60,8 +63,7 @@ export function HomeScreen({
 
       <StatusBar
         isLoggedIn={isLoggedIn}
-        adaptersConfigured={adaptersConfigured}
-        chatActive={chatActive}
+        botStatuses={botStatuses}
         chatError={chatError}
         workDir={workDir}
       />
@@ -74,9 +76,9 @@ export function HomeScreen({
         </Box>
       )}
 
-      {isLoggedIn && adaptersConfigured === 0 && (
+      {isLoggedIn && botAccountsConfigured === 0 && (
         <Box marginTop={1}>
-          <Text color="yellow">Press C to configure chat adapters</Text>
+          <Text color="yellow">Press C to configure bot accounts</Text>
         </Box>
       )}
     </Box>

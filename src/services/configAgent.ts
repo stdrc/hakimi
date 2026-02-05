@@ -73,10 +73,10 @@ export class ConfigAgent {
       parameters: z.object({
         config: z.object({
           agentName: z.string().optional().describe('Name for the AI assistant'),
-          adapters: z.array(z.object({
+          botAccounts: z.array(z.object({
             type: z.enum(['telegram', 'slack', 'feishu']),
             config: z.record(z.any()),
-          })).optional().describe('List of adapter configurations'),
+          })).optional().describe('List of bot account configurations'),
         }).describe('The configuration object to write'),
       }),
       handler: async (params) => {

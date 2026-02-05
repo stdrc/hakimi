@@ -9,14 +9,14 @@ export interface KimiConfig {
   [key: string]: unknown;
 }
 
-export interface AdapterConfig {
+export interface BotAccountConfig {
   type: 'telegram' | 'slack' | 'feishu';
   config: Record<string, unknown>;
 }
 
 export interface HakimiConfig {
   agentName?: string;
-  adapters?: AdapterConfig[];
+  botAccounts?: BotAccountConfig[];
 }
 
 export async function readKimiConfig(): Promise<KimiConfig | null> {
@@ -42,7 +42,15 @@ export async function readHakimiConfig(): Promise<HakimiConfig | null> {
       return null;
     }
     const content = await readFile(HAKIMI_CONFIG, 'utf-8');
-    return TOML.parse(content) as HakimiConfig;
+    const parsed = TOML.parse(content) as HakimiConfig & { adapters?: BotAccountConfig[] };
+    
+    // Backward compatibility: migrate 'adapters' to 'botAccounts'
+    if (parsed.adapters && !parsed.botAccounts) {
+      parsed.botAccounts = parsed.adapters;
+      delete parsed.adapters;
+    }
+    
+    return parsed;
   } catch {
     return null;
   }
