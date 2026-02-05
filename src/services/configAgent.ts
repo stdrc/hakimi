@@ -4,8 +4,8 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createSession, createExternalTool, type Session, type Turn, type StreamEvent } from '@moonshot-ai/kimi-agent-sdk';
 import { z } from 'zod';
-import { writeHakimiConfig, type AdapterConfig } from '../utils/config.js';
-import { HAKIMI_DIR, getLanguageInstruction } from '../utils/paths.js';
+import { readHakimiConfig, writeHakimiConfig, type HakimiConfig } from '../utils/config.js';
+import { HAKIMI_DIR, HAKIMI_CONFIG, getLanguageInstruction } from '../utils/paths.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -55,23 +55,44 @@ export class ConfigAgent {
       },
     });
 
-    const finishConfigTool = createExternalTool({
-      name: 'FinishConfig',
-      description: 'Save configuration and finish the wizard',
+    const readConfigTool = createExternalTool({
+      name: 'ReadConfig',
+      description: `Read the current Hakimi configuration from ${HAKIMI_CONFIG}`,
+      parameters: z.object({}),
+      handler: async () => {
+        const config = await readHakimiConfig();
+        if (!config) {
+          return { output: 'Config file does not exist yet', message: '' };
+        }
+        return { output: JSON.stringify(config, null, 2), message: '' };
+      },
+    });
+
+    const writeConfigTool = createExternalTool({
+      name: 'WriteConfig',
+      description: `Write configuration to ${HAKIMI_CONFIG}`,
       parameters: z.object({
-        agentName: z.string().optional().describe('Name for the AI assistant (default: Hakimi)'),
-        adapters: z.array(z.object({
-          type: z.enum(['telegram', 'slack', 'feishu']),
-          config: z.record(z.any()),
-        })).describe('List of adapter configurations to save'),
+        config: z.object({
+          agentName: z.string().optional().describe('Name for the AI assistant'),
+          adapters: z.array(z.object({
+            type: z.enum(['telegram', 'slack', 'feishu']),
+            config: z.record(z.any()),
+          })).optional().describe('List of adapter configurations'),
+        }).describe('The configuration object to write'),
       }),
       handler: async (params) => {
-        await writeHakimiConfig({
-          agentName: params.agentName || 'Hakimi',
-          adapters: params.adapters as AdapterConfig[],
-        });
+        await writeHakimiConfig(params.config as HakimiConfig);
+        return { output: 'Configuration saved successfully', message: '' };
+      },
+    });
+
+    const finishTool = createExternalTool({
+      name: 'Finish',
+      description: 'Finish the configuration wizard',
+      parameters: z.object({}),
+      handler: async () => {
         this.callbacks.onFinished();
-        return { output: `Saved configuration: agent "${params.agentName || 'Hakimi'}" with ${params.adapters.length} adapter(s)`, message: '' };
+        return { output: 'Configuration wizard finished', message: '' };
       },
     });
 
@@ -80,12 +101,16 @@ export class ConfigAgent {
       sessionId: generateSessionId(),
       thinking: false,
       yoloMode: true,
-      externalTools: [askUserTool, finishConfigTool],
+      externalTools: [askUserTool, readConfigTool, writeConfigTool, finishTool],
     });
 
-    // Send initial prompt with system instructions
+    // Send initial prompt with system instructions and current config
     const langInstruction = getLanguageInstruction();
-    await this.sendMessage(this.systemPrompt + `\n\n${langInstruction}\n\nPlease start by asking the user what they want to name their AI assistant.`);
+    const currentConfig = await readHakimiConfig();
+    const configInfo = currentConfig
+      ? `Current config:\n\`\`\`json\n${JSON.stringify(currentConfig, null, 2)}\n\`\`\``
+      : 'No existing config file.';
+    await this.sendMessage(this.systemPrompt + `\n\n${langInstruction}\n\n${configInfo}\n\nGuide the user through configuration.`);
   }
 
   async sendMessage(content: string): Promise<void> {

@@ -58,7 +58,6 @@ hakimi/
 │   │   └── sessionCache.ts   # Generic TTL cache for chat sessions
 │   ├── tools/                # Agent tool definitions (Zod schemas)
 │   │   ├── askUser.ts        # AskUser tool schema
-│   │   ├── finishConfig.ts   # FinishConfig tool schema
 │   │   └── sendMessage.ts    # SendMessage tool schema
 │   └── utils/
 │       ├── paths.ts          # Path constants, language detection
@@ -189,7 +188,8 @@ The app uses a simple state-based screen routing in `App.tsx`:
 Two agent types are used:
 
 1. **ConfigAgent** (`configAgent.ts`): Guides users through adapter configuration
-   - Tools: `AskUser`, `FinishConfig`
+   - Tools: `AskUser`, `ReadConfig`, `WriteConfig`, `Finish`
+   - The agent reads/writes config directly and calls `Finish` when done
    - Prompt: `prompts/config-agent.md`
 
 2. **TheAgent** (`theAgent.ts`): Handles chat messages from platforms
