@@ -16,6 +16,7 @@ agent:
   extend: default
   system_prompt_args:
     ROLE_ADDITIONAL: |
+      <role>
       Your name is "${agentName}". You are powered by Kimi Code CLI (the underlying agent framework), but your identity to users is "${agentName}". Always introduce yourself as "${agentName}", not as "Kimi" or "Kimi Code".
 
       You are accessible via instant messaging platforms (Telegram/Slack/Feishu).
@@ -30,6 +31,7 @@ agent:
       - Send a greeting first, then details
       - Send each major point separately
       - Send code blocks as separate messages
+      </role>
 `;
 }
 
@@ -83,14 +85,17 @@ export class TheAgent {
       },
     });
 
-    this.session = createSession({
+    const sessionOptions = {
       workDir: HOME_DIR,
       sessionId: kimiSessionId,
       agentFile,
       thinking: false,
       yoloMode: true,
       externalTools: [sendMessageTool],
-    });
+    };
+    this.log(`Creating session with options: ${JSON.stringify({ ...sessionOptions, externalTools: '[...]' })}`);
+
+    this.session = createSession(sessionOptions);
 
     this.log(`Session created: ${kimiSessionId}`);
   }
@@ -130,7 +135,7 @@ export class TheAgent {
       for await (const event of turn) {
         // Handle approval requests automatically
         if (event.type === 'ApprovalRequest' && this.currentTurn) {
-          this.currentTurn.approve(event.payload.id, 'approve').catch(() => {});
+          this.currentTurn.approve(event.payload.id, 'approve').catch(() => { });
         }
         // Ignore text content - only SendMessage matters
       }

@@ -1,5 +1,5 @@
 diff --git a/node_modules/@moonshot-ai/kimi-agent-sdk/dist/index.cjs b/node_modules/@moonshot-ai/kimi-agent-sdk/dist/index.cjs
-index 178748a..1915dfd 100644
+index 178748a..7a3e2f1 100644
 --- a/node_modules/@moonshot-ai/kimi-agent-sdk/dist/index.cjs
 +++ b/node_modules/@moonshot-ai/kimi-agent-sdk/dist/index.cjs
 @@ -691,6 +691,9 @@ var ProtocolClient = class {
@@ -12,8 +12,34 @@ index 178748a..1915dfd 100644
      return args;
    }
    // Private: RPC Communication
+@@ -930,6 +933,7 @@ var SessionImpl = class {
+   _executable;
+   _env;
+   _externalTools;
++  _agentFile;
+   _slashCommands = [];
+   _state = "idle";
+   client = null;
+@@ -944,6 +948,7 @@ var SessionImpl = class {
+     this._executable = options.executable ?? "kimi";
+     this._env = options.env ?? {};
+     this._externalTools = options.externalTools ?? [];
++    this._agentFile = options.agentFile;
+     this._clientInfo = options.clientInfo;
+     log.session("Created session %s in %s", this._sessionId, this._workDir);
+   }
+@@ -1062,7 +1067,8 @@ var SessionImpl = class {
+       yoloMode: this._yoloMode,
+       executablePath: this._executable,
+       environmentVariables: this._env,
+-      externalTools: this._externalTools,
++      externalTools: this._externalTools,
++      agentFile: this._agentFile,
+       clientInfo: this._clientInfo
+     });
+     this._slashCommands = initResult.slash_commands;
 diff --git a/node_modules/@moonshot-ai/kimi-agent-sdk/dist/index.mjs b/node_modules/@moonshot-ai/kimi-agent-sdk/dist/index.mjs
-index db90a40..2854315 100644
+index db90a40..8b5c3e2 100644
 --- a/node_modules/@moonshot-ai/kimi-agent-sdk/dist/index.mjs
 +++ b/node_modules/@moonshot-ai/kimi-agent-sdk/dist/index.mjs
 @@ -661,6 +661,9 @@ var ProtocolClient = class {
@@ -26,6 +52,32 @@ index db90a40..2854315 100644
      return args;
    }
    // Private: RPC Communication
+@@ -900,6 +903,7 @@ var SessionImpl = class {
+   _executable;
+   _env;
+   _externalTools;
++  _agentFile;
+   _slashCommands = [];
+   _state = "idle";
+   client = null;
+@@ -914,6 +918,7 @@ var SessionImpl = class {
+     this._executable = options.executable ?? "kimi";
+     this._env = options.env ?? {};
+     this._externalTools = options.externalTools ?? [];
++    this._agentFile = options.agentFile;
+     this._clientInfo = options.clientInfo;
+     log.session("Created session %s in %s", this._sessionId, this._workDir);
+   }
+@@ -1032,7 +1037,8 @@ var SessionImpl = class {
+       yoloMode: this._yoloMode,
+       executablePath: this._executable,
+       environmentVariables: this._env,
+-      externalTools: this._externalTools,
++      externalTools: this._externalTools,
++      agentFile: this._agentFile,
+       clientInfo: this._clientInfo
+     });
+     this._slashCommands = initResult.slash_commands;
 diff --git a/node_modules/@moonshot-ai/kimi-agent-sdk/dist/schema.d.mts b/node_modules/@moonshot-ai/kimi-agent-sdk/dist/schema.d.mts
 index f44799b..98cc4e6 100644
 --- a/node_modules/@moonshot-ai/kimi-agent-sdk/dist/schema.d.mts

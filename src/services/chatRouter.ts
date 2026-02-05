@@ -205,14 +205,23 @@ export class ChatRouter {
     let chatSession = this.sessionCache.get(sessionId);
 
     if (!chatSession) {
+      const platform = koishiSession.platform;
       chatSession = {
         sessionId,
-        platform: koishiSession.platform,
+        platform,
         userId: koishiSession.userId || '',
         botId: koishiSession.selfId || '',
         isProcessing: false,
         sendFn: async (message: string) => {
-          await this.sendWithRetry(() => koishiSession.send(message), 10);
+          // Escape special characters for Slack
+          let escapedMessage = message;
+          if (platform === 'slack') {
+            escapedMessage = message
+              .replace(/&/g, '&amp;')
+              .replace(/</g, '&lt;')
+              .replace(/>/g, '&gt;');
+          }
+          await this.sendWithRetry(() => koishiSession.send(escapedMessage), 10);
         },
         agent: null,
         pendingMessage: null,
